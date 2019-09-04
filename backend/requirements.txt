@@ -1,5 +1,6 @@
 Flask == 1.0.3
 mysql-connector-python
 requests
+requests-oauthlib
 python-dateutil
 python-dotenv
