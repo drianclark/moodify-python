@@ -142,6 +142,23 @@ def update_tracks():
 
 	return jsonify(new_tracks)
 
+@app.route('/api/get_tracks')
+def get_tracks():
+	# for now, returns the tracks listened to over the last 24 hours
+	tracks = []
+
+	query = """SELECT title, valence, `date` FROM tracks
+	WHERE `date` >= now() - INTERVAL 1 DAY"""
+
+	cur = cnx.cursor()
+	cur.execute(query)
+
+	for (title, valence, date) in cur:
+		current_track = {'title':title, 'valence':valence, 'date':date}
+		tracks.append(current_track)
+
+	return jsonify(tracks)
+
 def spotify_login():
 	# get a token from the spotify API
 	token = requests.get('https://accounts.spotify.com/authorize', params={'client_id':client_id, 'response_type':'code', 'redirect_uri':'http://localhost:5000/callback', 'scope':'user-read-recently-played'})
@@ -167,7 +184,7 @@ def get_recently_played_tracks(access_token):
 		current_track['id'] = item['track']['id']
 
 		# TITLE
-		current_track['title'] = item['track']['name'].encode('utf-8')
+		current_track['title'] = item['track']['name']
 
 		# DATE
 		current_track['date'] = item['played_at']
