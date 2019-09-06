@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
 from flask import Flask, redirect, request, jsonify
+from flask_cors import CORS
 import mysql.connector
 from datetime import datetime
 from dotenv import load_dotenv
@@ -13,6 +14,7 @@ import os
 import base64
 
 app = Flask(__name__)
+CORS(app)
 
 # loading env variables
 load_dotenv()
@@ -144,11 +146,11 @@ def update_tracks():
 
 @app.route('/api/get_tracks')
 def get_tracks():
-	# for now, returns the tracks listened to over the last 24 hours
+	# for now, returns the tracks listened to over the last 48 hours
 	tracks = []
 
 	query = """SELECT title, valence, `date` FROM tracks
-	WHERE `date` >= now() - INTERVAL 1 DAY"""
+	WHERE `date` >= now() - INTERVAL 2 DAY ORDER BY `date` ASC"""
 
 	cur = cnx.cursor()
 	cur.execute(query)
@@ -168,44 +170,49 @@ def spotify_login():
 def get_recently_played_tracks(access_token):
 	r = requests.get('https://api.spotify.com/v1/me/player/recently-played', params={'limit':50}, headers={"Authorization": "Bearer " + access_token})
 
-	if r.status_code == 401:
-		# use refresh token to update access token
-		refresh_access_token()
-		r = requests.get('https://api.spotify.com/v1/me/player/recently-played', params={'limit':50}, headers={"Authorization": "Bearer " + access_token})
-
 	history = r.json()
 
 	tracks = []
 
 	current_track = {}	# empty track object used to add the current track to tracks array
 
-	for item in history['items']:	# iterate through all track objects in recently played tracks object
-		# ID
-		current_track['id'] = item['track']['id']
+	# attempt to get recently played tracks from spotify api, if authentication fails, get new access token then retry
+	while True:
+		try:
+			for item in history['items']:	# iterate through all track objects in recently played tracks object
+				# ID
+				current_track['id'] = item['track']['id']
 
-		# TITLE
-		current_track['title'] = item['track']['name']
+				# TITLE
+				current_track['title'] = item['track']['name']
 
-		# DATE
-		current_track['date'] = item['played_at']
+				# DATE
+				current_track['date'] = item['played_at']
 
-		# AUDIO FEATURES
-		audio_features = requests.get('https://api.spotify.com/v1/audio-features/' + item['track']['id'], headers={"Authorization": "Bearer " + access_token}).json()
+				# AUDIO FEATURES
+				audio_features = requests.get('https://api.spotify.com/v1/audio-features/' + item['track']['id'], headers={"Authorization": "Bearer " + access_token}).json()
 
-		current_track['valence'] = audio_features['valence']
-		current_track['acousticness'] = audio_features['acousticness']
-		current_track['danceability'] = audio_features['danceability']
-		current_track['energy'] = audio_features['energy']
-		current_track['speechiness'] = audio_features['speechiness']
-		current_track['tempo'] = audio_features['tempo']
+				current_track['valence'] = audio_features['valence']
+				current_track['acousticness'] = audio_features['acousticness']
+				current_track['danceability'] = audio_features['danceability']
+				current_track['energy'] = audio_features['energy']
+				current_track['speechiness'] = audio_features['speechiness']
+				current_track['tempo'] = audio_features['tempo']
 
-		# ARTISTS
-		# current_track['artists'] = []
-		# for artist_object in item['track']['artists']: # iterate through all the artist objects in the artists array
-		# 	current_track['artists'].append({'id': artist_object['id'], 'name': artist_object['name'].encode('utf-8')})
+				# ARTISTS
+				# current_track['artists'] = []
+				# for artist_object in item['track']['artists']: # iterate through all the artist objects in the artists array
+				# 	current_track['artists'].append({'id': artist_object['id'], 'name': artist_object['name'].encode('utf-8')})
 
-		tracks.append(current_track)
-		current_track = {} # reset the current track
+				tracks.append(current_track)
+				current_track = {} # reset the current track
+
+		except KeyError:
+			refresh_access_token()
+			r = requests.get('https://api.spotify.com/v1/me/player/recently-played', params={'limit':50}, headers={"Authorization": "Bearer " + access_token})
+			history = r.json()
+
+		break
 
 	return tracks
 
