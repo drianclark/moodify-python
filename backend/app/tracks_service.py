@@ -40,32 +40,22 @@ redirect(token.url)
 @app.route('/')
 def hello_world():
 
-	# check if there are access and refresh tokens and display them
-	# access_token = os.getenv('ACCESS_TOKEN')
-	# refresh_token = os.getenv('REFRESH_TOKEN')
-	#
-	# if access_token != None and refresh_token != None:
-	# 	return "Access token is {} and refresh token is {}".format(access_token, refresh_token)
-	#
-	# else:
-	# 	return "No tokens"
 	return access_token
-	# return get_recently_played_tracks(access_token)
 
-@app.route('/api/get_token')
+@app.route('/api/request_token')
 def home():
 	# get a token from the spotify API
-	token = requests.get('https://accounts.spotify.com/authorize', params={'client_id':client_id, 'response_type':'code', 'redirect_uri':'http://localhost:5000/api/get_token/callback', 'scope':'user-read-recently-played'})
+	token = requests.get('https://accounts.spotify.com/authorize', params={'client_id':client_id, 'response_type':'code', 'redirect_uri':'http://localhost:5000/api/request_token/callback', 'scope':'user-read-recently-played'})
 
 	return redirect(token.url)
 
-@app.route('/api/get_token/callback')
-def get_token():
+@app.route('/api/request_token/callback')
+def request_token():
 	global access_token
 	global refresh_token
 
 	code = request.args.get('code')
-	r = requests.post('https://accounts.spotify.com/api/token', data={'grant_type':'authorization_code', 'code':code, 'redirect_uri':'http://localhost:5000/api/get_token/callback', 'client_id':client_id, 'client_secret':client_secret})
+	r = requests.post('https://accounts.spotify.com/api/token', data={'grant_type':'authorization_code', 'code':code, 'redirect_uri':'http://localhost:5000/api/request_token/callback', 'client_id':client_id, 'client_secret':client_secret})
 
 	access_token = r.json()['access_token']
 	refresh_token = r.json()['refresh_token']
@@ -114,7 +104,7 @@ def update_tracks():
 	# most recent play date in datetime format
 	date = get_most_recent_play_date_on_db()
 
-	tracks = get_recently_played_tracks(access_token)
+	tracks = get_recently_played_tracks()
 
 	# find the overlap in most recent play date between the fetched tracks and the database items
 	index = 0
@@ -128,7 +118,7 @@ def update_tracks():
 
 	# get all the tracks that are more recent than the one in the database
 	new_tracks = tracks[:index]
-	print(new_tracks)
+	# print(new_tracks)
 
 	for track in new_tracks:
 		track['date'] = to_sql_date_format(track['date'])
@@ -149,17 +139,29 @@ def get_tracks():
 	# for now, returns the tracks listened to over the last 48 hours
 	tracks = []
 
-	query = """SELECT title, valence, `date` FROM tracks
+	query = """SELECT title, valence, `date`, spotifyid FROM tracks
 	WHERE `date` >= now() - INTERVAL 2 DAY ORDER BY `date` ASC"""
 
 	cur = cnx.cursor()
 	cur.execute(query)
 
-	for (title, valence, date) in cur:
-		current_track = {'title':title, 'valence':valence, 'date':date}
+	for (title, valence, date, spotifyid) in cur:
+		current_track = {'title':title, 'valence':valence, 'date':date, 'spotifyid':spotifyid}
 		tracks.append(current_track)
 
 	return jsonify(tracks)
+
+@app.route('/api/get_token')
+def handle_token_request():
+	global access_token
+
+	try:
+		test_request = requests.get('https://api.spotify.com/v1/me/player/recently-played', params={'limit':1}, headers={"Authorization": "Bearer " + access_token}).raise_for_status()
+
+	except requests.exceptions.HTTPError:
+		refresh_access_token()
+
+	return jsonify(access_token)
 
 def spotify_login():
 	# get a token from the spotify API
@@ -167,7 +169,8 @@ def spotify_login():
 
 	return redirect(token.url)
 
-def get_recently_played_tracks(access_token):
+def get_recently_played_tracks():
+	global access_token
 	r = requests.get('https://api.spotify.com/v1/me/player/recently-played', params={'limit':50}, headers={"Authorization": "Bearer " + access_token})
 
 	history = r.json()
@@ -211,6 +214,7 @@ def get_recently_played_tracks(access_token):
 			refresh_access_token()
 			r = requests.get('https://api.spotify.com/v1/me/player/recently-played', params={'limit':50}, headers={"Authorization": "Bearer " + access_token})
 			history = r.json()
+			continue
 
 		break
 
