@@ -81,44 +81,34 @@ var customTooltips = async function(tooltip) {
 				var titleLines = tooltip.title || [];
 				let spotifyid = tooltip.body[0].lines[0];
                 console.log(spotifyid)
-                let trackInfo = getTrackInfo(spotifyid)
-                                .then(response => {
-                                    let artists = []
+                let trackInfo =
+                    getTrackInfo(spotifyid)
+                        .then(response => {
+                            let artists = []
 
-                                    let title = response.data.name;
-                                    let imgUrl = response.data.album.images[1].url
+                            let title = response.data.name;
+                            let imgUrl = response.data.album.images[1].url
 
-                                    console.log(imgUrl)
-                                    for (let artist of response.data.artists) {
-                                        artists.push(artist.name)
-                                    }
+                            console.log(imgUrl)
+                            for (let artist of response.data.artists) {
+                                artists.push(artist.name)
+                            }
 
-                                    innerHtml = '<thead>';
+                            innerHtml = '<thead>';
+            				innerHtml += '<tr><th class="track-title pb-0">' + title + '</th></tr>';
+                            innerHtml += '</thead><tbody>';
 
-                    				innerHtml += '<tr><th>' + title + '</th></tr>';
+                            innerHtml += '<tr class="artists pb-2"><td>' + artists.join(', ') + '</td></tr>'
+                            var img = '<img src= ' + imgUrl + '>'
+            				innerHtml += '<tr><td>' + img + '</td></tr>';
 
-                                    innerHtml += '</thead><tbody>';
+            				innerHtml += '</tbody>';
 
-                    				var colors = tooltip.labelColors[0];
-                    				var style = 'background:' + colors.backgroundColor;
-                    				style += '; border-color:' + colors.borderColor;
-                    				style += '; border-width: 2px';
-                    				var span = '<span style="' + style + '"></span>';
-                                    var img = '<img src= ' + imgUrl + '>'
-                    				innerHtml += '<tr><td>' + img + '</td></tr>';
+            				var tableRoot = tooltipEl.querySelector('table');
+            				tableRoot.innerHTML = innerHtml;
 
-                    				innerHtml += '</tbody>';
-
-                    				var tableRoot = tooltipEl.querySelector('table');
-                    				tableRoot.innerHTML = innerHtml;
-
-                                    return "trackInfo";
-                                })
-                                // .catch(error => {
-                                //     if (error.response.status === 401) {
-                                //         axios.interceptors.request.eject(refresh_interceptor)
-                                //     }
-                                // })
+                            return "trackInfo";
+                        })
 			}
 
 			var positionY = this._chart.canvas.offsetTop;
@@ -131,7 +121,7 @@ var customTooltips = async function(tooltip) {
 			tooltipEl.style.fontFamily = tooltip._bodyFontFamily;
 			tooltipEl.style.fontSize = tooltip.bodyFontSize + 'px';
 			tooltipEl.style.fontStyle = tooltip._bodyFontStyle;
-			tooltipEl.style.padding = tooltip.yPadding + 'px ' + tooltip.xPadding + 'px';
+			// tooltipEl.style.padding = tooltip.yPadding + 'px ' + tooltip.xPadding + 'px';
 		};
 
 function get_tracks() {
@@ -154,6 +144,7 @@ function get_tracks() {
                         data: data,
                         fill: false,
                         showLine: true,
+                        lineTension: 0,
                         borderColor: 'rgba(0, 128, 255, 1)'
                     }]
                 },
@@ -198,6 +189,8 @@ window.onload = function() {
 
 <!-- Add "scoped" attribute to limit CSS to this component only -->
 <style scoped>
+@import url('https://fonts.googleapis.com/css?family=Yantramanav&display=swap');
+
 h3 {
   margin: 40px 0 0;
 }
@@ -212,11 +205,13 @@ li {
 a {
   color: #42b983;
 }
+
 .container >>> #chartjs-tooltip {
     opacity: 1;
-    position: absolute !important;
+    position: absolute;
     background: rgba(0, 0, 0, .7);
     color: white;
+    padding: 10px;
     border-radius: 3px;
     -webkit-transition: all .1s ease;
     transition: all .1s ease;
@@ -225,10 +220,14 @@ a {
     transform: translate(-50%, 0);
 }
 
-.container >>> .chartjs-tooltip-key {
-	display: inline-block;
-	width: 10px;
-	height: 10px;
-	margin-right: 10px;
+.container >>> .track-title {
+	font-family: 'Yantramanav', sans-serif;
+	font-size: 22px;
+    text-align: left;
+}
+
+.container >>> .artists {
+    font-family: 'Yantramanav', sans-serif;
+    font-size: 16px;
 }
 </style>

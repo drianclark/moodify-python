@@ -140,7 +140,7 @@ def get_tracks():
 	tracks = []
 
 	query = """SELECT title, valence, `date`, spotifyid FROM tracks
-	WHERE `date` >= now() - INTERVAL 2 DAY ORDER BY `date` ASC"""
+	WHERE `date` >= now() - INTERVAL 3 DAY ORDER BY `date` ASC"""
 
 	cur = cnx.cursor()
 	cur.execute(query)
