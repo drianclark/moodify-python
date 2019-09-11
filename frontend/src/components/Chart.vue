@@ -245,6 +245,7 @@ a {
 
 .container >>> .artists {
     font-family: 'Yantramanav', sans-serif;
+    text-align: left;
     font-size: 16px;
 }
 </style>
