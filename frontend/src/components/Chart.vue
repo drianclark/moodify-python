@@ -1,7 +1,11 @@
 <template>
   <div class="hello">
       <b-container>
-          <track-filter></track-filter>
+          <track-filter
+            v-on:days-filter='updateChartDays'
+            v-on:date-filter='updateChartDate'
+            >
+          </track-filter>
           <canvas id="chart"></canvas>
       </b-container>
   </div>
@@ -12,11 +16,36 @@ import axios from 'axios';
 import Chart from 'chart.js';
 import TrackFilter from './TrackFilter.vue'
 export default {
-  name: 'HelloWorld',
+  name: 'ChartComponent',
   props: {
     msg: String
   },
-  components: { TrackFilter }
+  components: { TrackFilter },
+  methods: {
+      updateChartDays: function(numberOfDays) {
+          axios.get('http://localhost:5000/api/get_tracks', {
+              params: {
+                  days: numberOfDays
+              }
+          })
+            .then(response => {
+                console.log(response.data)
+            })
+      },
+      updateChartDate: function(startDate, endDate) {
+          axios.get('http://localhost:5000/api/get_tracks', {
+              params: {
+                  startDate: startDate,
+                  endDate: endDate
+              }
+          })
+            .then(response => {
+                console.log(response.data)
+                console.log(startDate)
+                console.log(endDate)
+            })
+      }
+  }
 }
 
 var accessToken;
