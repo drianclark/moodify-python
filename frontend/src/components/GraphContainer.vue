@@ -7,10 +7,11 @@
     />
     <scatter-chart
       v-if='loaded'
-      :styles="{height: '500px', position: 'relative'}"
+      :styles="{height: '600px', position: 'relative'}"
       :height='500'
-      :chartdata='chartdata'
-      :options='options'/>
+      :options='options'
+      :chart-data='chartdata'
+    />
   </div>
 </template>
 
@@ -30,18 +31,36 @@ export default {
       updateChartDays: function(numberOfDays) {
           //http://localhost:5000/api/get_tracks
 
-          axios.get('https://virtserver.swaggerhub.com/Adrian-David/spotify-mood-tracker/1.0.0/api/get_tracks', {
+          axios.get('http://localhost:5000/api/get_tracks_by_days', {
               params: {
-                  filterByDays: numberOfDays
+                  days: numberOfDays
               }
           })
             .then(response => {
                 console.log(response.data)
-                console.log(numberOfDays)
+                let data = []
+                let index = 0
+
+                for (let track of response.data) {
+                    data.push({x:index, y:track.valence})
+                    index +=1;
+                }
+
+                let data_object = {
+                    datasets: [{
+                        data: data,
+                        fill: false,
+                        showLine: true,
+                        lineTension: 0,
+                        borderColor: 'rgba(0, 128, 255, 1)'
+                    }]
+                }
+
+                this.chartdata = data_object
             })
       },
       updateChartDate: function(startDate, endDate) {
-          axios.get('http://localhost:5000/api/get_tracks', {
+          axios.get('http://localhost:5000/api/get_tracks_by_date', {
               params: {
                   startDate: moment(startDate).format("YYYY-MM-DD"),
                   endDate: moment(endDate).format("YYYY-MM-DD")
@@ -49,8 +68,6 @@ export default {
           })
             .then(response => {
                 console.log(response.data)
-                console.log(moment(startDate).format("YYYY-MM-DD"))
-                console.log(moment(endDate).format("YYYY-MM-DD"))
             })
       },
       dateFormatter(date) {
@@ -65,7 +82,11 @@ export default {
   async mounted () {
     this.loaded = false
     try {
-      const response = await axios.get("http://localhost:5000/api/get_tracks");
+      const response = await axios.get('http://localhost:5000/api/get_tracks_by_days', {
+          params: {
+              days: 1
+          }
+      });
 
       let data = []
       let index = 0

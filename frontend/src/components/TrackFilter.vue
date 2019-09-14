@@ -42,7 +42,7 @@
 
 
 <script>
-import Datepicker from 'vuejs-datepicker';
+import Datepicker from 'vuejs-datepicker';;
 
 export default {
     name: 'TrackFilter',
