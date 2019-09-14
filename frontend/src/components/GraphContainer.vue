@@ -1,5 +1,10 @@
 <template>
   <div class="container">
+    <TrackFilter
+        v-on:days-filter='updateChartDays'
+        v-on:date-filter='updateChartDate'
+        :format='dateFormatter'
+    />
     <scatter-chart
       v-if='loaded'
       :styles="{height: '500px', position: 'relative'}"
@@ -11,11 +16,47 @@
 
 <script>
 import ScatterChart from './Graph.vue'
+import TrackFilter from './TrackFilter.vue'
 import axios from 'axios';
+import moment from 'moment';
 
 export default {
   name: 'ScatterChartContainer',
-  components: { ScatterChart },
+  components: {
+      ScatterChart,
+      TrackFilter
+  },
+  methods: {
+      updateChartDays: function(numberOfDays) {
+          //http://localhost:5000/api/get_tracks
+
+          axios.get('https://virtserver.swaggerhub.com/Adrian-David/spotify-mood-tracker/1.0.0/api/get_tracks', {
+              params: {
+                  filterByDays: numberOfDays
+              }
+          })
+            .then(response => {
+                console.log(response.data)
+                console.log(numberOfDays)
+            })
+      },
+      updateChartDate: function(startDate, endDate) {
+          axios.get('http://localhost:5000/api/get_tracks', {
+              params: {
+                  startDate: moment(startDate).format("YYYY-MM-DD"),
+                  endDate: moment(endDate).format("YYYY-MM-DD")
+              }
+          })
+            .then(response => {
+                console.log(response.data)
+                console.log(moment(startDate).format("YYYY-MM-DD"))
+                console.log(moment(endDate).format("YYYY-MM-DD"))
+            })
+      },
+      dateFormatter(date) {
+          return moment(date).format('DD-MM-YYYY');
+      }
+  },
   data: () => ({
     loaded: false,
     chartdata: null,
@@ -173,6 +214,7 @@ var customTooltips = function(tooltip) {
 </script>
 
 <style scoped>
+@import url('https://fonts.googleapis.com/css?family=Yantramanav&display=swap');
 
 .container >>> #chartjs-tooltip {
     opacity: 1;

@@ -51,7 +51,7 @@ export default {
       selected: 'days',
       numberOfDays: null,
       startDate: null,
-      endDate: null,
+      endDate: new Date(),
       options: [
           { value: 'days', text: 'Tracks played in the last x days'},
           { value: 'date', text: 'Tracks played between two dates'}

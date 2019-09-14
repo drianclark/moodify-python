@@ -7,11 +7,12 @@ from datetime import datetime
 from dotenv import load_dotenv
 import dateutil.parser
 import requests
-# from oauthlib.oauth2 import BackendApplicationClient
-# from requests_oauthlib import OAuth2Session
 import json
 import os
 import base64
+import time
+from timeloop import Timeloop
+from datetime import timedelta
 
 app = Flask(__name__)
 CORS(app)
@@ -37,6 +38,10 @@ db_time_format = '%Y-%m-%d %H:%M:%S'
 token = requests.get('https://accounts.spotify.com/authorize', params={'client_id':client_id, 'response_type':'code', 'redirect_uri':'http://localhost:5000/', 'scope':'user-read-recently-played'})
 redirect(token.url)
 
+# @app.before_first_request
+# def initialize():
+#
+
 @app.route('/')
 def hello_world():
 
@@ -45,12 +50,13 @@ def hello_world():
 @app.route('/api/request_token')
 def home():
 	# get a token from the spotify API
-	token = requests.get('https://accounts.spotify.com/authorize', params={'client_id':client_id, 'response_type':'code', 'redirect_uri':'http://localhost:5000/api/request_token/callback', 'scope':'user-read-recently-played'})
+	code = requests.get('https://accounts.spotify.com/authorize', params={'client_id':client_id, 'response_type':'code', 'redirect_uri':'http://localhost:5000/api/request_token/callback', 'scope':'user-read-recently-played'})
+	print(code.url)
 
-	return redirect(token.url)
+	return redirect(code.url)
 
 @app.route('/api/request_token/callback')
-def request_token():
+def callback():
 	global access_token
 	global refresh_token
 
@@ -100,37 +106,8 @@ def request_token():
 	return "Access token is {} and refresh token is {}".format(access_token, refresh_token)
 
 @app.route('/api/update_tracks')
-def update_tracks():
-	# most recent play date in datetime format
-	date = get_most_recent_play_date_on_db()
-
-	tracks = get_recently_played_tracks()
-
-	# find the overlap in most recent play date between the fetched tracks and the database items
-	index = 0
-	for track in tracks:
-		datetime_object = dateutil.parser.isoparse(track['date']).replace(tzinfo=None, microsecond=0) # converting to datetime object (no microsecond or tzinfo) to allow comparison
-		# if current track's play date is older than or the same as the most recent in the database, end the loop
-		if datetime_object <= date:
-			break
-		else:
-			index += 1
-
-	# get all the tracks that are more recent than the one in the database
-	new_tracks = tracks[:index]
-	# print(new_tracks)
-
-	for track in new_tracks:
-		track['date'] = to_sql_date_format(track['date'])
-
-	cur = cnx.cursor()
-
-	sql = """INSERT INTO `tracks` (spotifyid, title, valence, `date`, acousticness, danceability, energy, speechiness, tempo)
-	VALUES (%(id)s,%(title)s,%(valence)s,%(date)s,%(acousticness)s,%(danceability)s,%(energy)s,%(speechiness)s,%(tempo)s)"""
-
-	cur.executemany(sql, new_tracks)
-	cnx.commit()
-	cur.close()
+def trigger_tracks_update():
+	new_tracks = update_tracks()
 
 	return jsonify(new_tracks)
 
@@ -169,19 +146,23 @@ def spotify_login():
 
 	return redirect(token.url)
 
+def request_token():
+	code = requests.get('https://accounts.spotify.com/authorize', params={'client_id':client_id, 'response_type':'code', 'redirect_uri':'http://localhost:5000/api/request_token/callback', 'scope':'user-read-recently-played'})
+
 def get_recently_played_tracks():
 	global access_token
+
 	r = requests.get('https://api.spotify.com/v1/me/player/recently-played', params={'limit':50}, headers={"Authorization": "Bearer " + access_token})
 
 	history = r.json()
 
 	tracks = []
-
 	current_track = {}	# empty track object used to add the current track to tracks array
 
 	# attempt to get recently played tracks from spotify api, if authentication fails, get new access token then retry
 	while True:
 		try:
+			print("doing items")
 			for item in history['items']:	# iterate through all track objects in recently played tracks object
 				# ID
 				current_track['id'] = item['track']['id']
@@ -211,12 +192,30 @@ def get_recently_played_tracks():
 				current_track = {} # reset the current track
 
 		except KeyError:
+			print("keyerror")
 			refresh_access_token()
 			r = requests.get('https://api.spotify.com/v1/me/player/recently-played', params={'limit':50}, headers={"Authorization": "Bearer " + access_token})
 			history = r.json()
 			continue
 
 		break
+
+	return tracks
+
+def push_tracks_to_db(tracks):
+	for track in tracks:
+		track['date'] = to_sql_date_format(track['date'])
+
+	cur = cnx.cursor()
+
+	sql = """INSERT INTO `tracks` (spotifyid, title, valence, `date`, acousticness, danceability, energy, speechiness, tempo)
+	VALUES (%(id)s,%(title)s,%(valence)s,%(date)s,%(acousticness)s,%(danceability)s,%(energy)s,%(speechiness)s,%(tempo)s)"""
+
+	cur.executemany(sql, tracks)
+	cnx.commit()
+	cur.close()
+
+	print("pushed to db")
 
 	return tracks
 
@@ -250,15 +249,18 @@ def refresh_access_token():
 	print(refresh_token)
 	r = requests.post('https://accounts.spotify.com/api/token', data={'grant_type': 'refresh_token', 'refresh_token': refresh_token}, headers=head).json()
 	print(r)
-	update_access_token(r["access_token"])
+	update_tokens(r["access_token"], refresh_token)
 
-def update_access_token(new_token):
+def update_tokens(new_access_token, new_refresh_token):
 	global access_token
-	access_token = new_token
+	global refresh_token
+	access_token = new_access_token
+	refresh_token = new_refresh_token
 
 	envs = open('.env', 'r').read()
 	envs_array = envs.split('\n')
 	envs_array = ['ACCESS_TOKEN={}'.format(access_token) if 'ACCESS_TOKEN' in e else e for e in envs_array]
+	envs_array = ['REFRESH_TOKEN={}'.format(refresh_token) if 'REFRESH_TOKEN' in e else e for e in envs_array]
 	envs = '\n'.join(envs_array)
 
 	with open('.env', 'w') as f:
@@ -271,7 +273,6 @@ def update_access_token(new_token):
 
 	load_dotenv()
 
-
 '''
 Updating the database:
 
@@ -283,6 +284,35 @@ Updating the database:
 			add everything
 '''
 
+tl = Timeloop()
+
+@tl.job(interval=timedelta(minutes=1))
+def update_tracks():
+		print("updating tracks")
+
+		date = get_most_recent_play_date_on_db()
+
+		tracks = get_recently_played_tracks()
+
+		# find the overlap in most recent play date between the fetched tracks and the database items
+		index = 0
+		for track in tracks:
+			datetime_object = dateutil.parser.isoparse(track['date']).replace(tzinfo=None, microsecond=0) # converting to datetime object (no microsecond or tzinfo) to allow comparison
+			# if current track's play date is older than or the same as the most recent in the database, end the loop
+			if datetime_object <= date:
+				break
+			else:
+				index += 1
+
+		# get all the tracks that are more recent than the one in the database
+		new_tracks = tracks[:index]
+		# print(new_tracks)
+
+		push_tracks_to_db(new_tracks)
+
+		return new_tracks
+
+tl.start()
 
 if __name__ == '__main__':
 	app.run(debug=True, host='0.0.0.0', port=5000)

@@ -17,9 +17,6 @@ import Chart from 'chart.js';
 import TrackFilter from './TrackFilter.vue'
 export default {
   name: 'ChartComponent',
-  props: {
-    msg: String
-  },
   components: { TrackFilter },
   methods: {
       updateChartDays: function(numberOfDays) {
