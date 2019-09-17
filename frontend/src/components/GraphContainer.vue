@@ -1,18 +1,18 @@
 <template>
-  <div class="container">
-    <TrackFilter
+    <div class="container">
+        <TrackFilter
         v-on:days-filter='updateChartDays'
         v-on:date-filter='updateChartDate'
         :format='dateFormatter'
-    />
-    <scatter-chart
-      v-if='loaded'
-      :styles="{height: '600px', position: 'relative'}"
-      :height='500'
-      :options='options'
-      :chart-data='chartdata'
-    />
-  </div>
+        />
+        <scatter-chart
+        v-if='loaded'
+        :styles="{height: '600px', position: 'relative'}"
+        :height='500'
+        :options='options'
+        :chart-data='chartdata'
+        />
+    </div>
 </template>
 
 <script>
@@ -21,30 +21,40 @@ import TrackFilter from './TrackFilter.vue'
 import axios from 'axios';
 import moment from 'moment';
 
-export default {
-  name: 'ScatterChartContainer',
-  components: {
-      ScatterChart,
-      TrackFilter
-  },
-  methods: {
-      updateChartDays: function(numberOfDays) {
-          //http://localhost:5000/api/get_tracks
+const chunk = (arr, size) =>
+Array.from({ length: Math.ceil(arr.length / size) }, (v, i) =>
+arr.slice(i * size, i * size + size)
+);
 
-          axios.get('http://localhost:5000/api/get_tracks_by_days', {
-              params: {
-                  days: numberOfDays
-              }
-          })
+var tracksinfo = {};
+
+export default {
+    name: 'ScatterChartContainer',
+    components: {
+        ScatterChart,
+        TrackFilter
+    },
+    methods: {
+        updateChartDays: function(numberOfDays) {
+            this.loaded = false;
+
+            axios.get('http://localhost:5000/api/get_tracks_by_days', {
+                params: {
+                    days: numberOfDays
+                }
+            })
             .then(response => {
-                console.log(response.data)
                 let data = []
                 let index = 0
+                let spotifyIDs = []
 
                 for (let track of response.data) {
                     data.push({x:index, y:track.valence})
+                    spotifyIDs.push(track.spotifyid)
                     index +=1;
                 }
+
+                this.updateTracksInfo(spotifyIDs);
 
                 let data_object = {
                     datasets: [{
@@ -57,83 +67,176 @@ export default {
                 }
 
                 this.chartdata = data_object
+
+                this.options = {
+                    maintainAspectRatio: false,
+                    legend: {
+                        display: false
+                    },
+                    tooltips: {
+                        enabled: false,
+                        mode: 'index',
+                        position: 'nearest',
+                        custom: customTooltips,
+                        callbacks: {
+                            label: function(tooltipItem, data) {
+                                let spotifyid = response.data[tooltipItem.index].spotifyid;
+                                console.log(tooltipItem.index);
+                                return spotifyid;
+                            }
+                        }
+                    }
+                }
+
+                this.loaded = true;
             })
-      },
-      updateChartDate: function(startDate, endDate) {
-          axios.get('http://localhost:5000/api/get_tracks_by_date', {
-              params: {
-                  startDate: moment(startDate).format("YYYY-MM-DD"),
-                  endDate: moment(endDate).format("YYYY-MM-DD")
-              }
-          })
+        },
+        updateChartDate: function(startDate, endDate) {
+            this.loaded = false;
+
+            axios.get('http://localhost:5000/api/get_tracks_by_date', {
+                params: {
+                    startDate: moment(startDate).format("YYYY-MM-DD"),
+                    endDate: moment(endDate).format("YYYY-MM-DD")
+                }
+            })
             .then(response => {
-                console.log(response.data)
+                let data = []
+                let index = 0
+                let spotifyIDs = []
+
+                for (let track of response.data) {
+                    data.push({x:index, y:track.valence})
+                    spotifyIDs.push(track.spotifyid)
+                    index +=1;
+                }
+
+                this.updateTracksInfo(spotifyIDs);
+
+                let data_object = {
+                    datasets: [{
+                        data: data,
+                        fill: false,
+                        showLine: true,
+                        lineTension: 0,
+                        borderColor: 'rgba(0, 128, 255, 1)'
+                    }]
+                }
+
+                this.chartdata = data_object
+
+                this.options = {
+                    maintainAspectRatio: false,
+                    legend: {
+                        display: false
+                    },
+                    tooltips: {
+                        enabled: false,
+                        mode: 'index',
+                        position: 'nearest',
+                        custom: customTooltips,
+                        callbacks: {
+                            label: function(tooltipItem, data) {
+                                let spotifyid = response.data[tooltipItem.index].spotifyid;
+                                console.log(tooltipItem.index);
+                                return spotifyid;
+                            }
+                        }
+                    }
+                }
+
+                this.loaded = true
             })
-      },
-      dateFormatter(date) {
-          return moment(date).format('DD-MM-YYYY');
-      }
-  },
-  data: () => ({
-    loaded: false,
-    chartdata: null,
-    options: null
-  }),
-  async mounted () {
-    this.loaded = false
-    try {
-      const response = await axios.get('http://localhost:5000/api/get_tracks_by_days', {
-          params: {
-              days: 1
-          }
-      });
+        },
+        updateTracksInfo: async function(spotifyIDs) {
+            tracksinfo = {};
+            for (let idArray of (chunk(spotifyIDs, 50))) {
+                let response = await getTracksInfo(idArray.join(','));
 
-      let data = []
-      let index = 0
+                for (let trackInfo of response.data.tracks) {
+                    let spotifyID = trackInfo.id
+                    let currentInfo = {
+                        artists : [],
+                        title : trackInfo.name,
+                        imgUrl: trackInfo.album.images[1].url
+                    }
 
-      for (let track of response.data) {
-          data.push({x:index, y:track.valence})
-          index +=1;
-      }
+                    for (let artist of trackInfo.artists) {
+                        currentInfo.artists.push(artist.name)
+                    }
 
-      let data_object = {
-          datasets: [{
-              data: data,
-              fill: false,
-              showLine: true,
-              lineTension: 0,
-              borderColor: 'rgba(0, 128, 255, 1)'
-          }]
-      }
+                    tracksinfo[spotifyID] = currentInfo
+                }
+            }
+            console.log(tracksinfo);
+        },
+        dateFormatter: function(date) {
+            return moment(date).format('DD-MM-YYYY');
+        }
+    },
+    data: () => ({
+        loaded: false,
+        chartdata: null,
+        options: null
+    }),
+    async mounted () {
+        this.loaded = false
+        try {
+            const response = await axios.get('http://localhost:5000/api/get_tracks_by_days', {
+                params: {
+                    days: 1
+                }
+            });
 
-      this.chartdata = data_object
-      this.options = {
-          maintainAspectRatio: false,
-          legend: {
-              display: false
-          },
-          tooltips: {
-              enabled: false,
-              mode: 'index',
-              position: 'nearest',
-              custom: customTooltips,
-              callbacks: {
-                  label: function(tooltipItem, data) {
-                      var spotifyid = response.data[tooltipItem.index].spotifyid;
-                      console.log(tooltipItem.index);
+            let data = []
+            let index = 0
+            let spotifyIDs = []
 
-                      return spotifyid;
-                  }
-              }
-          }
-      }
+            for (let track of response.data) {
+                data.push({x:index, y:track.valence})
+                spotifyIDs.push(track.spotifyid)
+                index +=1;
+            }
 
-      this.loaded = true
+            this.updateTracksInfo(spotifyIDs);
 
-    } catch (e) {
-      console.error(e)
+            let data_object = {
+                datasets: [{
+                    data: data,
+                    fill: false,
+                    showLine: true,
+                    lineTension: 0,
+                    borderColor: 'rgba(0, 128, 255, 1)'
+                }]
+            }
+
+            this.chartdata = data_object
+            this.options = {
+                maintainAspectRatio: false,
+                legend: {
+                    display: false
+                },
+                tooltips: {
+                    enabled: false,
+                    mode: 'index',
+                    position: 'nearest',
+                    custom: customTooltips,
+                    callbacks: {
+                        label: function(tooltipItem, data) {
+                            let spotifyid = response.data[tooltipItem.index].spotifyid;
+                            console.log(tooltipItem.index);
+                            return spotifyid;
+                        }
+                    }
+                }
+            }
+
+            this.loaded = true
+
+        } catch (e) {
+            console.error(e)
+        }
     }
-  }
 }
 
 var accessToken;
@@ -141,95 +244,109 @@ getAccessToken();
 
 function getAccessToken() {
     axios.get("http://localhost:5000/api/get_token")
-        .then(token => {
-            accessToken = token.data
-            return token.data
-        })
+    .then(token => {
+        accessToken = token.data
+        return token.data
+    })
 }
 //
 function getTrackInfo(spotifyid) {
     // interceptor for handling authentication errors
 
     var refresh_interceptor = axios.interceptors.response.use(null, (error) => {
-          if (error.config && error.response && error.response.status === 401) {
+        if (error.config && error.response && error.response.status === 401) {
             return axios.get("http://localhost:5000/api/get_token").then((token) => {
-              error.config.headers.Authorization = "Bearer " + token.data
-              // console.log(error.config)
-              return axios.request(error.config);
+                error.config.headers.Authorization = "Bearer " + token.data
+                return axios.request(error.config);
             });
-          }
+        }
 
-          return Promise.reject(error);
-        });
+        return Promise.reject(error);
+    });
 
     return axios.get("https://api.spotify.com/v1/tracks/" + spotifyid,
-                { headers: {'Authorization':'Bearer ' + accessToken}})
+    { headers: {'Authorization':'Bearer ' + accessToken}})
+
+}
+
+function getTracksInfo(spotifyids) {
+    // interceptor for handling authentication errors
+
+    var refresh_interceptor = axios.interceptors.response.use(null, (error) => {
+        if (error.config && error.response && error.response.status === 401) {
+            return axios.get("http://localhost:5000/api/get_token").then((token) => {
+                error.config.headers.Authorization = "Bearer " + token.data
+                return axios.request(error.config);
+            });
+        }
+
+        return Promise.reject(error);
+    });
+
+    return axios.get("https://api.spotify.com/v1/tracks",
+    {
+        headers: {'Authorization':'Bearer ' + accessToken},
+        params: {ids: spotifyids}
+    })
 
 }
 
 var customTooltips = function(tooltip) {
-	// Tooltip Element
-	var tooltipEl = document.getElementById('chartjs-tooltip');
+    // Tooltip Element
+    var tooltipEl = document.getElementById('chartjs-tooltip');
 
-	if (!tooltipEl) {
-		tooltipEl = document.createElement('div');
-		tooltipEl.id = 'chartjs-tooltip';
-		tooltipEl.innerHTML = '<div></div>';
-		this._chart.canvas.parentNode.appendChild(tooltipEl);
-	}
+    if (!tooltipEl) {
+        tooltipEl = document.createElement('div');
+        tooltipEl.id = 'chartjs-tooltip';
+        tooltipEl.innerHTML = '<div></div>';
+        this._chart.canvas.parentNode.appendChild(tooltipEl);
+    }
 
-	// Hide if no tooltip
-	if (tooltip.opacity === 0) {
-		tooltipEl.style.opacity = 0;
-		return;
-	}
+    // Hide if no tooltip
+    if (tooltip.opacity === 0) {
+        tooltipEl.style.opacity = 0;
+        return;
+    }
 
-	// Set caret Position
-	tooltipEl.classList.remove('above', 'below', 'no-transform');
-	if (tooltip.yAlign) {
-		tooltipEl.classList.add(tooltip.yAlign);
-	} else {
-		tooltipEl.classList.add('no-transform');
-	}
+    // Set caret Position
+    tooltipEl.classList.remove('above', 'below', 'no-transform');
+    if (tooltip.yAlign) {
+        tooltipEl.classList.add(tooltip.yAlign);
+    } else {
+        tooltipEl.classList.add('no-transform');
+    }
 
-	// Set Text
-	if (tooltip.body) {
+    // Set Text
+    if (tooltip.body) {
         var innerHtml;
-		var titleLines = tooltip.title || [];
-		let spotifyid = tooltip.body[0].lines[0];
-        console.log(spotifyid)
-        let trackInfo =
-            getTrackInfo(spotifyid)
-                .then(response => {
-                    let artists = []
+        var titleLines = tooltip.title || [];
+        let spotifyid = tooltip.body[0].lines[0];
 
-                    let title = response.data.name;
-                    let imgUrl = response.data.album.images[1].url
-                    for (let artist of response.data.artists) {
-                        artists.push(artist.name)
-                    }
+        let artists = []
+        let title = tracksinfo[spotifyid].title
+        let imgUrl = tracksinfo[spotifyid].imgUrl
+        for (let artist of tracksinfo[spotifyid].artists) {
+            artists.push(artist)
+        }
 
-                    innerHtml = '<h3 class="track-title mb-0">' + title + '</h2>';
-                    innerHtml += '<h5 class="artists mb-3">' + artists.join(', ') + '</h5>'
-                    innerHtml += '<img src= ' + imgUrl + '>'
+        innerHtml = '<h3 class="track-title mb-0">' + title + '</h2>';
+        innerHtml += '<h5 class="artists mb-3">' + artists.join(', ') + '</h5>'
+        innerHtml += '<img src= ' + imgUrl + '>'
 
-    				var tableRoot = tooltipEl.querySelector('div');
-    				tableRoot.innerHTML = innerHtml;
+        var tableRoot = tooltipEl.querySelector('div');
+        tableRoot.innerHTML = innerHtml;
+    }
 
-                    return "trackInfo";
-                })
-	}
+    var positionY = this._chart.canvas.offsetTop;
+    var positionX = this._chart.canvas.offsetLeft;
 
-	var positionY = this._chart.canvas.offsetTop;
-	var positionX = this._chart.canvas.offsetLeft;
-
-	// Display, position, and set styles for font
-	tooltipEl.style.opacity = 1;
-	tooltipEl.style.left = positionX + tooltip.caretX + 'px';
-	tooltipEl.style.top = positionY + tooltip.caretY + 'px';
-	tooltipEl.style.fontFamily = tooltip._bodyFontFamily;
-	tooltipEl.style.fontSize = tooltip.bodyFontSize + 'px';
-	tooltipEl.style.fontStyle = tooltip._bodyFontStyle;
+    // Display, position, and set styles for font
+    tooltipEl.style.opacity = 1;
+    tooltipEl.style.left = positionX + tooltip.caretX + 'px';
+    tooltipEl.style.top = positionY + tooltip.caretY + 'px';
+    tooltipEl.style.fontFamily = tooltip._bodyFontFamily;
+    tooltipEl.style.fontSize = tooltip.bodyFontSize + 'px';
+    tooltipEl.style.fontStyle = tooltip._bodyFontStyle;
 };
 
 </script>
@@ -252,8 +369,8 @@ var customTooltips = function(tooltip) {
 }
 
 .container >>> .track-title {
-	font-family: 'Yantramanav', sans-serif;
-	font-size: 22px;
+    font-family: 'Yantramanav', sans-serif;
+    font-size: 22px;
     text-align: left;
 }
 

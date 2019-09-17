@@ -49,7 +49,7 @@ export default {
     components: { Datepicker },
     data: () => ({
       selected: 'days',
-      numberOfDays: null,
+      numberOfDays: 1,
       startDate: null,
       endDate: new Date(),
       options: [

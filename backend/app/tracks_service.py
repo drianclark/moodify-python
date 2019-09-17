@@ -10,9 +10,7 @@ import requests
 import json
 import os
 import base64
-import time
-from timeloop import Timeloop
-from datetime import timedelta
+from apscheduler.schedulers.background import BackgroundScheduler
 
 app = Flask(__name__)
 CORS(app)
@@ -111,16 +109,41 @@ def trigger_tracks_update():
 
 	return jsonify(new_tracks)
 
-@app.route('/api/get_tracks')
-def get_tracks():
+@app.route('/api/get_tracks_by_days')
+def get_tracks_by_days():
+
+	days = request.args.get('days')
 	# for now, returns the tracks listened to over the last 48 hours
 	tracks = []
 
 	query = """SELECT title, valence, `date`, spotifyid FROM tracks
-	WHERE `date` >= now() - INTERVAL 3 DAY ORDER BY `date` ASC"""
+	WHERE `date` >= now() - INTERVAL (%s) DAY ORDER BY `date` ASC"""
 
 	cur = cnx.cursor()
-	cur.execute(query)
+
+	cur.execute(query, (days,))
+
+	for (title, valence, date, spotifyid) in cur:
+		current_track = {'title':title, 'valence':valence, 'date':date, 'spotifyid':spotifyid}
+		tracks.append(current_track)
+
+	return jsonify(tracks)
+
+@app.route('/api/get_tracks_by_date')
+def get_tracks_by_date():
+
+	startDate = request.args.get('startDate')
+	endDate = request.args.get('endDate')
+
+	tracks = []
+
+	print("before query")
+
+	query = """SELECT title, valence, `date`, spotifyid FROM tracks WHERE
+				CAST(`date` as DATE) BETWEEN CAST(%s AS DATE) and CAST(%s AS DATE);"""
+
+	cur = cnx.cursor()
+	cur.execute(query, (startDate, endDate,))
 
 	for (title, valence, date, spotifyid) in cur:
 		current_track = {'title':title, 'valence':valence, 'date':date, 'spotifyid':spotifyid}
@@ -216,6 +239,7 @@ def push_tracks_to_db(tracks):
 	cur.close()
 
 	print("pushed to db")
+	print(tracks)
 
 	return tracks
 
@@ -284,10 +308,8 @@ Updating the database:
 			add everything
 '''
 
-tl = Timeloop()
-
-@tl.job(interval=timedelta(minutes=1))
 def update_tracks():
+	if not app.debug or os.environ.get('WERKZEUG_RUN_MAIN') == 'true':
 		print("updating tracks")
 
 		date = get_most_recent_play_date_on_db()
@@ -312,7 +334,9 @@ def update_tracks():
 
 		return new_tracks
 
-tl.start()
+sched = BackgroundScheduler()
+sched.add_job(update_tracks, 'interval', minutes=15)
+sched.start()
 
 if __name__ == '__main__':
 	app.run(debug=True, host='0.0.0.0', port=5000)
