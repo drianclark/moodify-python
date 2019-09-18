@@ -15,4 +15,4 @@ RUN pip3 install -r requirements.txt
 
 ENTRYPOINT [ "python3" ]
 
-CMD [ "app/tracks_service.py" ]
+CMD [ "app/update_service.py" ]

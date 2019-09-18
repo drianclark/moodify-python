@@ -10,10 +10,11 @@ import requests
 import json
 import os
 import base64
-from apscheduler.schedulers.background import BackgroundScheduler
 import logging
 
 
+logging.basicConfig(level=logging.DEBUG)
+logging.getLogger('apscheduler').setLevel(logging.DEBUG)
 app = Flask(__name__)
 CORS(app)
 
@@ -357,12 +358,9 @@ def update_tracks():
 		# print(new_tracks)
 
 		push_tracks_to_db(new_tracks)
+		# sched.add_job(update_tracks, 'interval', minutes=2)
 
 		return new_tracks
-
-sched = BackgroundScheduler()
-sched.add_job(update_tracks, 'interval', minutes=1)
-sched.start()
 
 if __name__ == '__main__':
 	app.run(debug=True, host='0.0.0.0', port=5000)

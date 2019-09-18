@@ -4,5 +4,4 @@ requests
 requests-oauthlib
 python-dateutil
 python-dotenv
-timeloop
-apscheduler
+flask_cors

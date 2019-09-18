@@ -7,7 +7,7 @@
         />
 
             <b-button
-            disabled='!trackUpdateLoading'
+            :disabled='trackUpdateLoading'
             class='row mb-5 ml-3'
             v-on:click='triggerTracksUpdate'
             variant="outline-primary">

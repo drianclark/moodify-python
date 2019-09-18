@@ -30,3 +30,13 @@ services:
       - "5000:5000"
     depends_on:
       - db
+
+  db_update_service:
+    build: ./db_update_service
+    environment:
+      PYTHONUNBUFFERED: 1
+    volumes:
+      - ./db_update_service:/app
+    depends_on:
+      - db
+      - backend
