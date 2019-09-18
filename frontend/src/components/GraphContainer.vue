@@ -5,6 +5,23 @@
         v-on:date-filter='updateChartDate'
         :format='dateFormatter'
         />
+
+            <b-button
+            disabled='!trackUpdateLoading'
+            class='row mb-5 ml-3'
+            v-on:click='triggerTracksUpdate'
+            variant="outline-primary">
+            Update DB
+                <b-spinner
+                v-if='trackUpdateLoading'
+                small
+                class='ml-2'
+                type='grow'
+                variant='primary'
+                label="Loading...">
+                </b-spinner>
+            </b-button>
+
         <scatter-chart
         v-if='loaded'
         :styles="{height: '600px', position: 'relative'}"
@@ -44,6 +61,7 @@ export default {
                 }
             })
             .then(response => {
+                console.log(response);
                 let data = []
                 let index = 0
                 let spotifyIDs = []
@@ -81,7 +99,6 @@ export default {
                         callbacks: {
                             label: function(tooltipItem, data) {
                                 let spotifyid = response.data[tooltipItem.index].spotifyid;
-                                console.log(tooltipItem.index);
                                 return spotifyid;
                             }
                         }
@@ -91,6 +108,7 @@ export default {
                 this.loaded = true;
             })
         },
+
         updateChartDate: function(startDate, endDate) {
             this.loaded = false;
 
@@ -138,7 +156,6 @@ export default {
                         callbacks: {
                             label: function(tooltipItem, data) {
                                 let spotifyid = response.data[tooltipItem.index].spotifyid;
-                                console.log(tooltipItem.index);
                                 return spotifyid;
                             }
                         }
@@ -148,6 +165,7 @@ export default {
                 this.loaded = true
             })
         },
+
         updateTracksInfo: async function(spotifyIDs) {
             tracksinfo = {};
             for (let idArray of (chunk(spotifyIDs, 50))) {
@@ -168,16 +186,27 @@ export default {
                     tracksinfo[spotifyID] = currentInfo
                 }
             }
-            console.log(tracksinfo);
         },
+
         dateFormatter: function(date) {
             return moment(date).format('DD-MM-YYYY');
+        },
+
+        triggerTracksUpdate: function() {
+            this.trackUpdateLoading = true;
+            axios.get('http://localhost:5000/api/update_tracks')
+            .then((response) => {
+                console.log(response);
+                this.trackUpdateLoading = false
+            })
         }
+
     },
     data: () => ({
         loaded: false,
         chartdata: null,
-        options: null
+        options: null,
+        trackUpdateLoading: false
     }),
     async mounted () {
         this.loaded = false
@@ -224,7 +253,6 @@ export default {
                     callbacks: {
                         label: function(tooltipItem, data) {
                             let spotifyid = response.data[tooltipItem.index].spotifyid;
-                            console.log(tooltipItem.index);
                             return spotifyid;
                         }
                     }

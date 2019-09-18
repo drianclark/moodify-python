@@ -1,5 +1,5 @@
 <template>
-    <b-container class="text-left mb-5">
+    <b-container class="text-left mb-2">
         <b-row>
             <b-col cols=4>
                 <b-form-select v-model="selected" :options="options"></b-form-select>

@@ -11,6 +11,8 @@ import json
 import os
 import base64
 from apscheduler.schedulers.background import BackgroundScheduler
+import logging
+
 
 app = Flask(__name__)
 CORS(app)
@@ -105,51 +107,74 @@ def callback():
 
 @app.route('/api/update_tracks')
 def trigger_tracks_update():
-	new_tracks = update_tracks()
+	try:
+		new_tracks = update_tracks()
 
-	return jsonify(new_tracks)
+	except:
+		return Response(status=400, mimetype='application/json')
+
+	if len(new_tracks) == 0:
+		return jsonify(new_tracks), 204
+
+	else:
+		return jsonify(new_tracks)
 
 @app.route('/api/get_tracks_by_days')
 def get_tracks_by_days():
 
-	days = request.args.get('days')
-	# for now, returns the tracks listened to over the last 48 hours
-	tracks = []
+	try:
+		days = request.args.get('days')
+		# for now, returns the tracks listened to over the last 48 hours
+		tracks = []
 
-	query = """SELECT title, valence, `date`, spotifyid FROM tracks
-	WHERE `date` >= now() - INTERVAL (%s) DAY ORDER BY `date` ASC"""
+		query = """SELECT title, valence, `date`, spotifyid FROM tracks
+		WHERE `date` >= now() - INTERVAL (%s) DAY ORDER BY `date` ASC"""
 
-	cur = cnx.cursor()
+		cur = cnx.cursor()
 
-	cur.execute(query, (days,))
+		cur.execute(query, (days,))
 
-	for (title, valence, date, spotifyid) in cur:
-		current_track = {'title':title, 'valence':valence, 'date':date, 'spotifyid':spotifyid}
-		tracks.append(current_track)
+		for (title, valence, date, spotifyid) in cur:
+			current_track = {'title':title, 'valence':valence, 'date':date, 'spotifyid':spotifyid}
+			tracks.append(current_track)
 
-	return jsonify(tracks)
+	except:
+		return Response(status=500, mimetype='application/json')
+
+	if len(tracks) == 0:
+		return jsonify(tracks), 204
+	else:
+		return jsonify(tracks), 200
+
 
 @app.route('/api/get_tracks_by_date')
 def get_tracks_by_date():
 
-	startDate = request.args.get('startDate')
-	endDate = request.args.get('endDate')
+	try:
+		startDate = request.args.get('startDate')
+		endDate = request.args.get('endDate')
 
-	tracks = []
+		tracks = []
 
-	print("before query")
+		print("before query")
 
-	query = """SELECT title, valence, `date`, spotifyid FROM tracks WHERE
-				CAST(`date` as DATE) BETWEEN CAST(%s AS DATE) and CAST(%s AS DATE);"""
+		query = """SELECT title, valence, `date`, spotifyid FROM tracks WHERE
+					CAST(`date` as DATE) BETWEEN CAST(%s AS DATE) and CAST(%s AS DATE);"""
 
-	cur = cnx.cursor()
-	cur.execute(query, (startDate, endDate,))
+		cur = cnx.cursor()
+		cur.execute(query, (startDate, endDate,))
 
-	for (title, valence, date, spotifyid) in cur:
-		current_track = {'title':title, 'valence':valence, 'date':date, 'spotifyid':spotifyid}
-		tracks.append(current_track)
+		for (title, valence, date, spotifyid) in cur:
+			current_track = {'title':title, 'valence':valence, 'date':date, 'spotifyid':spotifyid}
+			tracks.append(current_track)
 
-	return jsonify(tracks)
+	except:
+		return Response(status=500, mimetype='application/json')
+
+	if len(tracks) == 0:
+		return jsonify(tracks), 204
+	else:
+		return jsonify(tracks), 200
 
 @app.route('/api/get_token')
 def handle_token_request():
@@ -310,6 +335,7 @@ Updating the database:
 
 def update_tracks():
 	if not app.debug or os.environ.get('WERKZEUG_RUN_MAIN') == 'true':
+		# raise ValueError("just testing")
 		print("updating tracks")
 
 		date = get_most_recent_play_date_on_db()
@@ -335,7 +361,7 @@ def update_tracks():
 		return new_tracks
 
 sched = BackgroundScheduler()
-sched.add_job(update_tracks, 'interval', minutes=15)
+sched.add_job(update_tracks, 'interval', minutes=1)
 sched.start()
 
 if __name__ == '__main__':
