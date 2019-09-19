@@ -8,6 +8,8 @@ import logging
 cnx = mysql.connector.connect(user='root', password='admin1', host='db', database='db0')
 logging.basicConfig(filename='update_service.log', level=logging.DEBUG)
 
+db_time_format = '%Y-%m-%d %H:%M:%S'
+
 def get_most_recent_play_date_on_db():
 	cur = cnx.cursor()
 	cur.execute('SELECT `date` FROM tracks ORDER BY `date` DESC LIMIT 1;')
@@ -30,14 +32,16 @@ def get_recently_played_tracks():
 
 	tracks = []
 	current_track = {}    # empty track object used to add the current track to tracks array
+	spotifyIDs = []
 
 	# attempt to get recently played tracks from spotify api, if authentication fails, get new access token then retry
 	while True:
 		try:
 			print("doing items")
-			for item in history['items']:    # iterate through all track objects in recently played tracks object
+			for item in history['items']:	# iterate through all track objects in recently played tracks object
 				# ID
 				current_track['id'] = item['track']['id']
+				spotifyIDs.append(current_track['id'])
 
 				# TITLE
 				current_track['title'] = item['track']['name']
@@ -45,28 +49,29 @@ def get_recently_played_tracks():
 				# DATE
 				current_track['date'] = item['played_at']
 
-				# AUDIO FEATURES
-				audio_features = requests.get('https://api.spotify.com/v1/audio-features/' + item['track']['id'], headers={"Authorization": "Bearer " + access_token}).json()
-
-				current_track['valence'] = audio_features['valence']
-				current_track['acousticness'] = audio_features['acousticness']
-				current_track['danceability'] = audio_features['danceability']
-				current_track['energy'] = audio_features['energy']
-				current_track['speechiness'] = audio_features['speechiness']
-				current_track['tempo'] = audio_features['tempo']
-
-				# ARTISTS
-				# current_track['artists'] = []
-				# for artist_object in item['track']['artists']: # iterate through all the artist objects in the artists array
-				#     current_track['artists'].append({'id': artist_object['id'], 'name': artist_object['name'].encode('utf-8')})
-
 				tracks.append(current_track)
-				logging.info("{}: Got track- {}".format(datetime.today(), item['track']['name']))
 				current_track = {} # reset the current track
 
-		except Exception as e:
-			print(e)
-			access_token = requests.get('http://backend:5000/api/get_token').json()
+			print("for finished")
+			audio_features_array = requests.get('https://api.spotify.com/v1/audio-features',
+												params={'ids':','.join(spotifyIDs)},
+												headers={"Authorization": "Bearer " + access_token}).json()['audio_features']
+			# print(audio_features_array)
+			for i in range(len(audio_features_array)):
+				tracks[i]['id'] = audio_features_array[i]['id']
+				# if i == 0:
+				# 	print(tracks[i])
+				# 	print(audio_features_array[i])
+				tracks[i]['valence'] = audio_features_array[i]['valence']
+				tracks[i]['acousticness'] = audio_features_array[i]['acousticness']
+				tracks[i]['danceability'] = audio_features_array[i]['danceability']
+				tracks[i]['energy'] = audio_features_array[i]['energy']
+				tracks[i]['speechiness'] = audio_features_array[i]['speechiness']
+				tracks[i]['tempo'] = audio_features_array[i]['tempo']
+
+		except KeyError:
+			print("keyerror")
+			refresh_access_token()
 			r = requests.get('https://api.spotify.com/v1/me/player/recently-played', params={'limit':50}, headers={"Authorization": "Bearer " + access_token})
 			history = r.json()
 			continue
@@ -95,6 +100,11 @@ def push_tracks_to_db(tracks):
 	print(tracks)
 
 	return tracks
+
+def to_sql_date_format(time):
+	datetime_object = dateutil.parser.isoparse(time).replace(tzinfo=None)
+
+	return datetime_object.strftime(db_time_format)
 
 def update_tracks():
 	# raise ValueError("just testing")
