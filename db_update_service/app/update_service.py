@@ -1,78 +1,86 @@
 from time import sleep
+from datetime import datetime
 import dateutil.parser
 import requests
 import mysql.connector
+import logging
 
 cnx = mysql.connector.connect(user='root', password='admin1', host='db', database='db0')
+logging.basicConfig(filename='update_service.log', level=logging.DEBUG)
 
 def get_most_recent_play_date_on_db():
-    cur = cnx.cursor()
-    cur.execute('SELECT `date` FROM tracks ORDER BY `date` DESC LIMIT 1;')
+	cur = cnx.cursor()
+	cur.execute('SELECT `date` FROM tracks ORDER BY `date` DESC LIMIT 1;')
 
-    try:
-        date = cur.fetchone()[0] # fetchone() returns a tuple with one element
+	try:
+		date = cur.fetchone()[0] # fetchone() returns a tuple with one element
 
-    except TypeError: # if nothing's been returned, there must be no entries yet
-        date = datetime.min
+	except TypeError: # if nothing's been returned, there must be no entries yet
+		date = datetime.min
 
-    return date
+	return date
 
 def get_recently_played_tracks():
-    access_token = requests.get('http://backend:5000/api/get_token').json()
+	logging.info("GETTING TRACKS")
+	access_token = requests.get('http://backend:5000/api/get_token').json()
 
-    r = requests.get('https://api.spotify.com/v1/me/player/recently-played', params={'limit':50}, headers={"Authorization": "Bearer " + access_token})
+	r = requests.get('https://api.spotify.com/v1/me/player/recently-played', params={'limit':50}, headers={"Authorization": "Bearer " + access_token})
 
-    history = r.json()
+	history = r.json()
 
-    tracks = []
-    current_track = {}    # empty track object used to add the current track to tracks array
+	tracks = []
+	current_track = {}    # empty track object used to add the current track to tracks array
 
-    # attempt to get recently played tracks from spotify api, if authentication fails, get new access token then retry
-    while True:
-        try:
-            print("doing items")
-            for item in history['items']:    # iterate through all track objects in recently played tracks object
-                # ID
-                current_track['id'] = item['track']['id']
+	# attempt to get recently played tracks from spotify api, if authentication fails, get new access token then retry
+	while True:
+		try:
+			print("doing items")
+			for item in history['items']:    # iterate through all track objects in recently played tracks object
+				# ID
+				current_track['id'] = item['track']['id']
 
-                # TITLE
-                current_track['title'] = item['track']['name']
+				# TITLE
+				current_track['title'] = item['track']['name']
 
-                # DATE
-                current_track['date'] = item['played_at']
+				# DATE
+				current_track['date'] = item['played_at']
 
-                # AUDIO FEATURES
-                audio_features = requests.get('https://api.spotify.com/v1/audio-features/' + item['track']['id'], headers={"Authorization": "Bearer " + access_token}).json()
+				# AUDIO FEATURES
+				audio_features = requests.get('https://api.spotify.com/v1/audio-features/' + item['track']['id'], headers={"Authorization": "Bearer " + access_token}).json()
 
-                current_track['valence'] = audio_features['valence']
-                current_track['acousticness'] = audio_features['acousticness']
-                current_track['danceability'] = audio_features['danceability']
-                current_track['energy'] = audio_features['energy']
-                current_track['speechiness'] = audio_features['speechiness']
-                current_track['tempo'] = audio_features['tempo']
+				current_track['valence'] = audio_features['valence']
+				current_track['acousticness'] = audio_features['acousticness']
+				current_track['danceability'] = audio_features['danceability']
+				current_track['energy'] = audio_features['energy']
+				current_track['speechiness'] = audio_features['speechiness']
+				current_track['tempo'] = audio_features['tempo']
 
-                # ARTISTS
-                # current_track['artists'] = []
-                # for artist_object in item['track']['artists']: # iterate through all the artist objects in the artists array
-                #     current_track['artists'].append({'id': artist_object['id'], 'name': artist_object['name'].encode('utf-8')})
+				# ARTISTS
+				# current_track['artists'] = []
+				# for artist_object in item['track']['artists']: # iterate through all the artist objects in the artists array
+				#     current_track['artists'].append({'id': artist_object['id'], 'name': artist_object['name'].encode('utf-8')})
 
-                tracks.append(current_track)
-                current_track = {} # reset the current track
+				tracks.append(current_track)
+				logging.info("{}: Got track- {}".format(datetime.today(), item['track']['name']))
+				current_track = {} # reset the current track
 
-        except KeyError:
-            print("keyerror")
-            access_token = requests.get('http://backend:5000/api/get_token')
-            r = requests.get('https://api.spotify.com/v1/me/player/recently-played', params={'limit':50}, headers={"Authorization": "Bearer " + access_token})
-            history = r.json()
-            continue
+		except Exception as e:
+			print(e)
+			access_token = requests.get('http://backend:5000/api/get_token').json()
+			r = requests.get('https://api.spotify.com/v1/me/player/recently-played', params={'limit':50}, headers={"Authorization": "Bearer " + access_token})
+			history = r.json()
+			continue
 
-        break
+		break
 
-    return tracks
+	return tracks
 
 def push_tracks_to_db(tracks):
+	logging.info("PUSHING TRACKS")
 	for track in tracks:
+		logging.info("{}: Will push- {}".format(datetime.today(), track['title']))
 		track['date'] = to_sql_date_format(track['date'])
+
 
 	cur = cnx.cursor()
 
@@ -89,34 +97,34 @@ def push_tracks_to_db(tracks):
 	return tracks
 
 def update_tracks():
-    # raise ValueError("just testing")
-    print("updating tracks")
+	# raise ValueError("just testing")
+	print("updating tracks")
 
-    date = get_most_recent_play_date_on_db()
+	date = get_most_recent_play_date_on_db()
 
-    tracks = get_recently_played_tracks()
+	tracks = get_recently_played_tracks()
 
-    # find the overlap in most recent play date between the fetched tracks and the database items
-    index = 0
-    for track in tracks:
-        datetime_object = dateutil.parser.isoparse(track['date']).replace(tzinfo=None, microsecond=0) # converting to datetime object (no microsecond or tzinfo) to allow comparison
-        # if current track's play date is older than or the same as the most recent in the database, end the loop
-        if datetime_object <= date:
-            break
-        else:
-            index += 1
+	# find the overlap in most recent play date between the fetched tracks and the database items
+	index = 0
+	for track in tracks:
+		datetime_object = dateutil.parser.isoparse(track['date']).replace(tzinfo=None, microsecond=0) # converting to datetime object (no microsecond or tzinfo) to allow comparison
+		# if current track's play date is older than or the same as the most recent in the database, end the loop
+		if datetime_object <= date:
+			break
+		else:
+			index += 1
 
-    # get all the tracks that are more recent than the one in the database
-    new_tracks = tracks[:index]
-    # print(new_tracks)
+	# get all the tracks that are more recent than the one in the database
+	new_tracks = tracks[:index]
+	# print(new_tracks)
 
-    push_tracks_to_db(new_tracks)
-    # sched.add_job(update_tracks, 'interval', minutes=2)
+	push_tracks_to_db(new_tracks)
+	# sched.add_job(update_tracks, 'interval', minutes=2)
 
-    return new_tracks
+	return new_tracks
 
 
 if __name__ == '__main__':
-    while True:
-        update_tracks()
-        sleep(180)
+	while True:
+		update_tracks()
+		sleep(180)
