@@ -137,4 +137,4 @@ def update_tracks():
 if __name__ == '__main__':
 	while True:
 		update_tracks()
-		sleep(180)
+		sleep(900)
