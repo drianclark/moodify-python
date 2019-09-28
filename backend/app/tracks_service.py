@@ -135,7 +135,7 @@ def get_tracks_by_days():
 		tracks = []
 
 		query = """SELECT title, valence, play_date, spotifyid FROM tracks
-		WHERE play_date >= now() - INTERVAL (%s) DAY ORDER BY play_date ASC;"""
+		WHERE play_date >= date(now()) - INTERVAL (%s) DAY ORDER BY play_date ASC;"""
 
 		cur = cnx.cursor()
 
