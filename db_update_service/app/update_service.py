@@ -1,3 +1,4 @@
+# from .config import Config
 from time import sleep
 from datetime import datetime
 import dateutil.parser
@@ -5,14 +6,15 @@ import requests
 import mysql.connector
 import logging
 
-cnx = mysql.connector.connect(user='root', password='admin1', host='db', database='db0')
+
+cnx = mysql.connector.connect(user='root', password='admin1', host='db', database='db')
 logging.basicConfig(filename='update_service.log', level=logging.DEBUG)
 
 db_time_format = '%Y-%m-%d %H:%M:%S'
 
 def get_most_recent_play_date_on_db():
 	cur = cnx.cursor()
-	cur.execute('SELECT `date` FROM tracks ORDER BY `date` DESC LIMIT 1;')
+	cur.execute('SELECT play_date FROM tracks ORDER BY play_date DESC LIMIT 1;')
 
 	try:
 		date = cur.fetchone()[0] # fetchone() returns a tuple with one element
@@ -89,7 +91,7 @@ def push_tracks_to_db(tracks):
 
 	cur = cnx.cursor()
 
-	sql = """INSERT INTO `tracks` (spotifyid, title, valence, `date`, acousticness, danceability, energy, speechiness, tempo)
+	sql = """INSERT INTO `tracks` (spotifyid, title, valence, play_date, acousticness, danceability, energy, speechiness, tempo)
 	VALUES (%(id)s,%(title)s,%(valence)s,%(date)s,%(acousticness)s,%(danceability)s,%(energy)s,%(speechiness)s,%(tempo)s)"""
 
 	cur.executemany(sql, tracks)
@@ -97,7 +99,11 @@ def push_tracks_to_db(tracks):
 	cur.close()
 
 	print("pushed to db")
-	print(tracks)
+
+	try:
+		print(tracks)
+	except UnicodeEncodeError:
+		print('unicode error')
 
 	return tracks
 
