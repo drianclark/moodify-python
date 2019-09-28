@@ -67,7 +67,7 @@ export default {
                 let spotifyIDs = []
 
                 for (let track of response.data) {
-                    data.push({x:index, y:track.valence})
+                    data.push({x:moment(track.date).toDate(), y:track.valence})
                     spotifyIDs.push(track.spotifyid)
                     index +=1;
                 }
@@ -86,12 +86,7 @@ export default {
 
                 this.chartdata = data_object
 
-                this.options = {
-                    maintainAspectRatio: false,
-                    legend: {
-                        display: false
-                    },
-                    tooltips: {
+                this.options.tooltips = {
                         enabled: false,
                         mode: 'index',
                         position: 'nearest',
@@ -103,6 +98,16 @@ export default {
                             }
                         }
                     }
+
+                this.options.scales = {
+                    xAxes: [{
+                        type:'time',
+                        distribution: 'series',
+                        time: {
+                            minUnit: this.getMinUnit()
+                        },
+                        bounds: 'ticks'          
+                    }]
                 }
 
                 this.loaded = true;
@@ -124,7 +129,7 @@ export default {
                 let spotifyIDs = []
 
                 for (let track of response.data) {
-                    data.push({x:index, y:track.valence})
+                    data.push({x:moment(track.date).toDate(), y:track.valence})
                     spotifyIDs.push(track.spotifyid)
                     index +=1;
                 }
@@ -143,12 +148,7 @@ export default {
 
                 this.chartdata = data_object
 
-                this.options = {
-                    maintainAspectRatio: false,
-                    legend: {
-                        display: false
-                    },
-                    tooltips: {
+                this.options.tooltips = {
                         enabled: false,
                         mode: 'index',
                         position: 'nearest',
@@ -160,7 +160,35 @@ export default {
                             }
                         }
                     }
+
+                this.options.scales = {
+                    xAxes: [{
+                        type:'time',
+                        distribution: 'series',
+                        time: {
+                            minUnit: this.getMinUnit()
+                        },
+                        bounds: 'ticks'          
+                    }]
                 }
+                // this.options = {
+                //     maintainAspectRatio: false,
+                //     legend: {
+                //         display: false
+                //     },
+                //     tooltips: {
+                //         enabled: false,
+                //         mode: 'index',
+                //         position: 'nearest',
+                //         custom: customTooltips,
+                //         callbacks: {
+                //             label: function(tooltipItem, data) {
+                //                 let spotifyid = response.data[tooltipItem.index].spotifyid;
+                //                 return spotifyid;
+                //             }
+                //         }
+                //     }
+                // }
 
                 this.loaded = true
             })
@@ -199,6 +227,20 @@ export default {
                 console.log(response);
                 this.trackUpdateLoading = false
             })
+        },
+
+        getMinUnit: function() {
+            console.log(this.chartdata.datasets[0].data)
+            let minE = (Math.min.apply(Math, this.chartdata.datasets[0].data.map(e => {return e.x})));
+            console.log(new Date(minE));
+            let min = moment(new Date(minE));
+            let maxE = (Math.max.apply(Math, this.chartdata.datasets[0].data.map(e => {return e.x})));
+            let max = moment(new Date(maxE));
+            console.log(new Date(maxE));
+            
+            if ((moment.duration(max.diff(min)).asHours()) > 24) {
+                return 'day'
+            } else return 'hour'
         }
 
     },
@@ -208,6 +250,7 @@ export default {
         options: null,
         trackUpdateLoading: false
     }),
+
     async mounted () {
         this.loaded = false
         try {
@@ -222,8 +265,9 @@ export default {
             let spotifyIDs = []
 
             for (let track of response.data) {
-                data.push({x:index, y:track.valence})
+                data.push({x:moment(track.date).toDate(), y:track.valence})
                 spotifyIDs.push(track.spotifyid)
+                console.log(moment(track.date).toDate());
                 index +=1;
             }
 
@@ -244,6 +288,16 @@ export default {
                 maintainAspectRatio: false,
                 legend: {
                     display: false
+                },
+                scales: {
+                    xAxes: [{
+                        type:'time',
+                        distribution: 'series',
+                        time: {
+                            minUnit: this.getMinUnit()
+                        },
+                        bounds: 'ticks'          
+                    }]
                 },
                 tooltips: {
                     enabled: false,
@@ -353,11 +407,13 @@ var customTooltips = function(tooltip) {
         let artists = []
         let title = tracksinfo[spotifyid].title
         let imgUrl = tracksinfo[spotifyid].imgUrl
+        let date = tracksinfo[spotifyid].date
         for (let artist of tracksinfo[spotifyid].artists) {
             artists.push(artist)
         }
 
         innerHtml = '<h3 class="track-title mb-0">' + title + '</h2>';
+        innerHtml = '<small class="date mb-0">' + date + '</small>';
         innerHtml += '<h5 class="artists mb-3">' + artists.join(', ') + '</h5>'
         innerHtml += '<img src= ' + imgUrl + '>'
 

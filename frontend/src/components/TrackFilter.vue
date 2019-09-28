@@ -50,7 +50,7 @@ export default {
     data: () => ({
       selected: 'days',
       numberOfDays: 1,
-      startDate: null,
+      startDate: new Date(new Date().setDate(new Date().getDate()-1)),  // yesterday's date
       endDate: new Date(),
       options: [
           { value: 'days', text: 'Tracks played in the last x days'},
