@@ -85,30 +85,8 @@ export default {
                 }
 
                 this.chartdata = data_object
-
-                this.options.tooltips = {
-                        enabled: false,
-                        mode: 'index',
-                        position: 'nearest',
-                        custom: customTooltips,
-                        callbacks: {
-                            label: function(tooltipItem, data) {
-                                let spotifyid = response.data[tooltipItem.index].spotifyid;
-                                return spotifyid;
-                            }
-                        }
-                    }
-
-                this.options.scales = {
-                    xAxes: [{
-                        type:'time',
-                        distribution: 'series',
-                        time: {
-                            minUnit: this.getMinUnit()
-                        },
-                        bounds: 'ticks'          
-                    }]
-                }
+                this.updateTooltips(response)
+                this.configureAxes()
 
                 this.loaded = true;
             })
@@ -134,6 +112,7 @@ export default {
                     index +=1;
                 }
 
+                console.log(response);
                 this.updateTracksInfo(spotifyIDs);
 
                 let data_object = {
@@ -147,49 +126,9 @@ export default {
                 }
 
                 this.chartdata = data_object
-
-                this.options.tooltips = {
-                        enabled: false,
-                        mode: 'index',
-                        position: 'nearest',
-                        custom: customTooltips,
-                        callbacks: {
-                            label: function(tooltipItem, data) {
-                                let spotifyid = response.data[tooltipItem.index].spotifyid;
-                                return spotifyid;
-                            }
-                        }
-                    }
-
-                this.options.scales = {
-                    xAxes: [{
-                        type:'time',
-                        distribution: 'series',
-                        time: {
-                            minUnit: this.getMinUnit()
-                        },
-                        bounds: 'ticks'          
-                    }]
-                }
-                // this.options = {
-                //     maintainAspectRatio: false,
-                //     legend: {
-                //         display: false
-                //     },
-                //     tooltips: {
-                //         enabled: false,
-                //         mode: 'index',
-                //         position: 'nearest',
-                //         custom: customTooltips,
-                //         callbacks: {
-                //             label: function(tooltipItem, data) {
-                //                 let spotifyid = response.data[tooltipItem.index].spotifyid;
-                //                 return spotifyid;
-                //             }
-                //         }
-                //     }
-                // }
-
+                this.updateTooltips(response)
+                this.configureAxes()
+                
                 this.loaded = true
             })
         },
@@ -229,18 +168,35 @@ export default {
             })
         },
 
-        getMinUnit: function() {
-            console.log(this.chartdata.datasets[0].data)
-            let minE = (Math.min.apply(Math, this.chartdata.datasets[0].data.map(e => {return e.x})));
-            console.log(new Date(minE));
-            let min = moment(new Date(minE));
-            let maxE = (Math.max.apply(Math, this.chartdata.datasets[0].data.map(e => {return e.x})));
-            let max = moment(new Date(maxE));
-            console.log(new Date(maxE));
-            
-            if ((moment.duration(max.diff(min)).asHours()) > 24) {
-                return 'day'
-            } else return 'hour'
+        updateTooltips: function(response) {
+            this.options.tooltips = {
+                enabled: false,
+                mode: 'index',
+                position: 'nearest',
+                custom: customTooltips,
+                callbacks: {
+                    label: function(tooltipItem, data) {
+                        let spotifyid = response.data[tooltipItem.index].spotifyid;
+                        return spotifyid;
+                    }
+                }
+            }
+        },
+
+        configureAxes: function() {
+            this.options.scales = {
+                xAxes: [{
+                        type:'time',
+                        distribution: 'series',
+                        time: {
+                            minUnit: 'day'
+                        },
+                        bounds: 'ticks',
+                        ticks: {
+                            minRotation: 90
+                        }          
+                    }]
+            }
         }
 
     },
@@ -288,30 +244,10 @@ export default {
                 maintainAspectRatio: false,
                 legend: {
                     display: false
-                },
-                scales: {
-                    xAxes: [{
-                        type:'time',
-                        distribution: 'series',
-                        time: {
-                            minUnit: this.getMinUnit()
-                        },
-                        bounds: 'ticks'          
-                    }]
-                },
-                tooltips: {
-                    enabled: false,
-                    mode: 'index',
-                    position: 'nearest',
-                    custom: customTooltips,
-                    callbacks: {
-                        label: function(tooltipItem, data) {
-                            let spotifyid = response.data[tooltipItem.index].spotifyid;
-                            return spotifyid;
-                        }
-                    }
                 }
             }
+            this.updateTooltips()
+            this.configureAxes()
 
             this.loaded = true
 
@@ -407,13 +343,11 @@ var customTooltips = function(tooltip) {
         let artists = []
         let title = tracksinfo[spotifyid].title
         let imgUrl = tracksinfo[spotifyid].imgUrl
-        let date = tracksinfo[spotifyid].date
         for (let artist of tracksinfo[spotifyid].artists) {
             artists.push(artist)
         }
 
         innerHtml = '<h3 class="track-title mb-0">' + title + '</h2>';
-        innerHtml = '<small class="date mb-0">' + date + '</small>';
         innerHtml += '<h5 class="artists mb-3">' + artists.join(', ') + '</h5>'
         innerHtml += '<img src= ' + imgUrl + '>'
 

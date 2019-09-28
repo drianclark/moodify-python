@@ -10,10 +10,10 @@ import requests
 import json
 import os
 import base64
-# import logging
-#
-#
-# logging.basicConfig(level=logging.DEBUG)
+import logging
+
+
+logging.basicConfig(level=logging.DEBUG)
 # logging.getLogger('apscheduler').setLevel(logging.DEBUG)
 app = Flask(__name__)
 CORS(app)
@@ -23,8 +23,12 @@ load_dotenv()
 client_id = os.getenv('CLIENT_ID')
 client_secret = os.getenv('CLIENT_SECRET')
 
+
+gcp_sql_host= ''
 # connecting to database
-cnx = mysql.connector.connect(user='root', password='admin1', host='db', database='db0')
+# cnx = mysql.connector.connect(user='root', password='mayllah11', host='35.246.100.216', database='db')
+cnx = mysql.connector.connect(user='root', password='admin1', host='db', database='db')
+print(cnx.is_connected())
 
 try:
 	access_token = os.getenv('ACCESS_TOKEN')
@@ -107,14 +111,14 @@ def callback():
 
 @app.route('/api/update_tracks')
 def trigger_tracks_update():
-	# try:
-	# 	new_tracks = update_tracks()
-	#
-	# except Exception as e:
-	# 	print(e)
-	# 	return Response(status=400, mimetype='application/json')
+	try:
+		new_tracks = update_tracks()
 
-	new_tracks = update_tracks()
+	except Exception as e:
+		print(e)
+		return Response(status=400, mimetype='application/json')
+
+	# new_tracks = update_tracks()
 
 	if len(new_tracks) == 0:
 		return jsonify(new_tracks), 204
@@ -130,8 +134,8 @@ def get_tracks_by_days():
 		# for now, returns the tracks listened to over the last 48 hours
 		tracks = []
 
-		query = """SELECT title, valence, `date`, spotifyid FROM tracks
-		WHERE `date` >= now() - INTERVAL (%s) DAY ORDER BY `date` ASC"""
+		query = """SELECT title, valence, play_date, spotifyid FROM tracks
+		WHERE play_date >= now() - INTERVAL (%s) DAY ORDER BY play_date ASC;"""
 
 		cur = cnx.cursor()
 
@@ -139,6 +143,7 @@ def get_tracks_by_days():
 
 		for (title, valence, date, spotifyid) in cur:
 			current_track = {'title':title, 'valence':valence, 'date':date, 'spotifyid':spotifyid}
+			print(date)
 			tracks.append(current_track)
 
 	except:
@@ -161,8 +166,8 @@ def get_tracks_by_date():
 
 		print("before query")
 
-		query = """SELECT title, valence, `date`, spotifyid FROM tracks WHERE
-					CAST(`date` as DATE) BETWEEN CAST(%s AS DATE) and CAST(%s AS DATE);"""
+		query = """SELECT title, valence, play_date, spotifyid FROM tracks WHERE
+					CAST(play_date as DATE) BETWEEN CAST(%s AS DATE) and CAST(%s AS DATE) ORDER BY play_date ASC;"""
 
 		cur = cnx.cursor()
 		cur.execute(query, (startDate, endDate,))
@@ -263,7 +268,7 @@ def push_tracks_to_db(tracks):
 
 	cur = cnx.cursor()
 
-	sql = """INSERT INTO `tracks` (spotifyid, title, valence, `date`, acousticness, danceability, energy, speechiness, tempo)
+	sql = """INSERT INTO `tracks` (spotifyid, title, valence, play_date, acousticness, danceability, energy, speechiness, tempo)
 	VALUES (%(id)s,%(title)s,%(valence)s,%(date)s,%(acousticness)s,%(danceability)s,%(energy)s,%(speechiness)s,%(tempo)s)"""
 
 	cur.executemany(sql, tracks)
@@ -282,7 +287,7 @@ def to_sql_date_format(time):
 
 def get_most_recent_play_date_on_db():
 	cur = cnx.cursor()
-	cur.execute('SELECT `date` FROM tracks ORDER BY `date` DESC LIMIT 1;')
+	cur.execute('SELECT play_date FROM tracks ORDER BY play_date DESC LIMIT 1;')
 
 	try:
 		date = cur.fetchone()[0] # fetchone() returns a tuple with one element
