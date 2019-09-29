@@ -141,6 +141,16 @@ def update_tracks():
 
 
 if __name__ == '__main__':
+	print("establishing connection to backend...")
+	while True:
+		try:
+			access_token = requests.get('http://backend:5000/api/get_token', timeout=3).json()
+		except:
+			print("retrying...")
+			sleep(3)
+			continue
+		break
+
 	while True:
 		update_tracks()
 		sleep(900)
