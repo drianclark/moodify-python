@@ -38,6 +38,12 @@ import TrackFilter from './TrackFilter.vue'
 import axios from 'axios';
 import moment from 'moment';
 
+const productionBaseURL = 'http://35.246.48.148:5000'
+const devBaseURL = 'http://localhost:5000'
+const production = true
+
+const baseURL = production ? productionBaseURL : devBaseURL 
+
 const chunk = (arr, size) =>
 Array.from({ length: Math.ceil(arr.length / size) }, (v, i) =>
 arr.slice(i * size, i * size + size)
@@ -55,7 +61,7 @@ export default {
         updateChartDays: function(numberOfDays) {
             this.loaded = false;
 
-            axios.get('http://localhost:5000/api/get_tracks_by_days', {
+            axios.get(baseURL + '/api/get_tracks_by_days', {
                 params: {
                     days: numberOfDays
                 }
@@ -95,7 +101,7 @@ export default {
         updateChartDate: function(startDate, endDate) {
             this.loaded = false;
 
-            axios.get('http://localhost:5000/api/get_tracks_by_date', {
+            axios.get(baseURL + '/api/get_tracks_by_date', {
                 params: {
                     startDate: moment(startDate).format("YYYY-MM-DD"),
                     endDate: moment(endDate).format("YYYY-MM-DD")
@@ -161,7 +167,7 @@ export default {
 
         triggerTracksUpdate: function() {
             this.trackUpdateLoading = true;
-            axios.get('http://localhost:5000/api/update_tracks')
+            axios.get(baseURL + '/api/update_tracks')
             .then((response) => {
                 console.log(response);
                 this.trackUpdateLoading = false
@@ -210,7 +216,7 @@ export default {
     async mounted () {
         this.loaded = false
         try {
-            const response = await axios.get('http://localhost:5000/api/get_tracks_by_days', {
+            const response = await axios.get(baseURL + '/api/get_tracks_by_days', {
                 params: {
                     days: 1
                 }
@@ -223,7 +229,6 @@ export default {
             for (let track of response.data) {
                 data.push({x:moment(track.date).toDate(), y:track.valence})
                 spotifyIDs.push(track.spotifyid)
-                console.log(moment(track.date).toDate());
                 index +=1;
             }
 
@@ -246,9 +251,10 @@ export default {
                     display: false
                 }
             }
-            this.updateTooltips()
+            this.updateTooltips(response)
             this.configureAxes()
 
+            console.log(tracksinfo);
             this.loaded = true
 
         } catch (e) {
@@ -261,30 +267,11 @@ var accessToken;
 getAccessToken();
 
 function getAccessToken() {
-    axios.get("http://localhost:5000/api/get_token")
+    axios.get(baseURL + "/api/get_token")
     .then(token => {
         accessToken = token.data
         return token.data
     })
-}
-//
-function getTrackInfo(spotifyid) {
-    // interceptor for handling authentication errors
-
-    var refresh_interceptor = axios.interceptors.response.use(null, (error) => {
-        if (error.config && error.response && error.response.status === 401) {
-            return axios.get("http://localhost:5000/api/get_token").then((token) => {
-                error.config.headers.Authorization = "Bearer " + token.data
-                return axios.request(error.config);
-            });
-        }
-
-        return Promise.reject(error);
-    });
-
-    return axios.get("https://api.spotify.com/v1/tracks/" + spotifyid,
-    { headers: {'Authorization':'Bearer ' + accessToken}})
-
 }
 
 function getTracksInfo(spotifyids) {
@@ -292,7 +279,7 @@ function getTracksInfo(spotifyids) {
 
     var refresh_interceptor = axios.interceptors.response.use(null, (error) => {
         if (error.config && error.response && error.response.status === 401) {
-            return axios.get("http://localhost:5000/api/get_token").then((token) => {
+            return axios.get(baseURL + "/api/get_token").then((token) => {
                 error.config.headers.Authorization = "Bearer " + token.data
                 return axios.request(error.config);
             });
