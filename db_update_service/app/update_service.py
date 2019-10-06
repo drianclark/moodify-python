@@ -153,4 +153,5 @@ if __name__ == '__main__':
 
 	while True:
 		update_tracks()
-		sleep(900)
+		sleep(300)
+		#sleep(30)
