@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-from flask import Flask, redirect, request, jsonify, Response
+from flask import Flask, redirect, request, jsonify, Response, url_for
 from flask_cors import CORS
 import mysql.connector
 from datetime import datetime
@@ -22,6 +22,8 @@ CORS(app)
 load_dotenv()
 client_id = os.getenv('CLIENT_ID')
 client_secret = os.getenv('CLIENT_SECRET')
+access_token = os.getenv('ACCESS_TOKEN')
+refresh_token = os.getenv('REFRESH_TOKEN')
 
 
 gcp_sql_host= ''
@@ -30,31 +32,28 @@ gcp_sql_host= ''
 cnx = mysql.connector.connect(user='root', password='admin1', host='db', database='db')
 print(cnx.is_connected())
 
-try:
-	access_token = os.getenv('ACCESS_TOKEN')
-	refresh_token = os.getenv('REFRESH_TOKEN')
-
-except:
-	print("Access token not available, please get one first")
-
 db_time_format = '%Y-%m-%d %H:%M:%S'
 
-# upon application start, get a token
-token = requests.get('https://accounts.spotify.com/authorize', params={'client_id':client_id, 'response_type':'code', 'redirect_uri':'http://localhost:5000/', 'scope':'user-read-recently-played'})
-redirect(token.url)
-
-# @app.before_first_request
-# def initialize():
-#
+@app.before_first_request
+def initialize():
+	if access_token == None or refresh_token == None:
+		print("getting access token")
+		code = requests.get('https://accounts.spotify.com/authorize', params={'client_id':client_id, 'response_type':'code', 'redirect_uri':'http://localhost:5000/api/request_token/callback', 'scope':'user-read-recently-played'})
 
 @app.route('/')
 def hello_world():
+	print("In root")
 	return access_token
 
 @app.route('/api/request_token')
 def home():
 	# get a token from the spotify API
-	code = requests.get('https://accounts.spotify.com/authorize', params={'client_id':client_id, 'response_type':'code', 'redirect_uri':'http://localhost:5000/api/request_token/callback', 'scope':'user-read-recently-played'})
+	code = requests.get('https://accounts.spotify.com/authorize', 
+				params={'client_id':client_id, 
+						'response_type':'code', 
+						'redirect_uri':'http://localhost:5000/api/request_token/callback', 
+						'scope':'user-read-recently-played'})
+	
 	print(code.url)
 
 	return redirect(code.url)
@@ -66,6 +65,7 @@ def callback():
 
 	code = request.args.get('code')
 	r = requests.post('https://accounts.spotify.com/api/token', data={'grant_type':'authorization_code', 'code':code, 'redirect_uri':'http://localhost:5000/api/request_token/callback', 'client_id':client_id, 'client_secret':client_secret})
+	print(r.json())
 
 	access_token = r.json()['access_token']
 	refresh_token = r.json()['refresh_token']
@@ -79,6 +79,7 @@ def callback():
 		print("no envs")
 		with open('.env', 'a') as f:
 			try:
+				f.write('\n')
 				f.write('ACCESS_TOKEN={}\n'.format(access_token))
 				f.write('REFRESH_TOKEN={}'.format(refresh_token))
 
@@ -129,15 +130,15 @@ def trigger_tracks_update():
 @app.route('/api/get_tracks_by_days')
 def get_tracks_by_days():
 
+	cur = cnx.cursor()
+
 	try:
 		days = request.args.get('days')
 		# for now, returns the tracks listened to over the last 48 hours
 		tracks = []
 
 		query = """SELECT title, valence, play_date, spotifyid FROM tracks
-		WHERE play_date >= date(now()) - INTERVAL (%s) DAY ORDER BY play_date ASC;"""
-
-		cur = cnx.cursor()
+		WHERE play_date >= date(now()) - INTERVAL (%s) DAY ORDER BY play_date ASC;"""		
 
 		cur.execute(query, (days,))
 
@@ -149,6 +150,9 @@ def get_tracks_by_days():
 	except:
 		return Response(status=500, mimetype='application/json')
 
+	finally:
+		cur.close()
+
 	if len(tracks) == 0:
 		return jsonify(tracks), 204
 	else:
@@ -158,6 +162,7 @@ def get_tracks_by_days():
 @app.route('/api/get_tracks_by_date')
 def get_tracks_by_date():
 
+	cur = cnx.cursor()
 	try:
 		startDate = request.args.get('startDate')
 		endDate = request.args.get('endDate')
@@ -169,7 +174,7 @@ def get_tracks_by_date():
 		query = """SELECT title, valence, play_date, spotifyid FROM tracks WHERE
 					CAST(play_date as DATE) BETWEEN CAST(%s AS DATE) and CAST(%s AS DATE) ORDER BY play_date ASC;"""
 
-		cur = cnx.cursor()
+		
 		cur.execute(query, (startDate, endDate,))
 
 		for (title, valence, date, spotifyid) in cur:
@@ -179,6 +184,9 @@ def get_tracks_by_date():
 	except:
 		return Response(status=500, mimetype='application/json')
 
+	finally:
+		cur.close()
+
 	if len(tracks) == 0:
 		return jsonify(tracks)
 	else:
@@ -187,6 +195,10 @@ def get_tracks_by_date():
 @app.route('/api/get_token')
 def handle_token_request():
 	global access_token
+	global refresh_token
+
+	if access_token == None or refresh_token == None:
+		return "No access or refresh token. Visit /api/request_token to fetch token"
 
 	try:
 		test_request = requests.get('https://api.spotify.com/v1/me/player/recently-played', params={'limit':1}, headers={"Authorization": "Bearer " + access_token}).raise_for_status()
@@ -294,6 +306,9 @@ def get_most_recent_play_date_on_db():
 
 	except TypeError:
 		date = datetime.min
+
+	finally:
+		cur.close()
 
 	return date
 
