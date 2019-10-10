@@ -130,9 +130,8 @@ def trigger_tracks_update():
 @app.route('/api/get_tracks_by_days')
 def get_tracks_by_days():
 
-	cur = cnx.cursor()
-
 	try:
+		cur = cnx.cursor()
 		days = request.args.get('days')
 		# for now, returns the tracks listened to over the last 48 hours
 		tracks = []
@@ -161,9 +160,9 @@ def get_tracks_by_days():
 
 @app.route('/api/get_tracks_by_date')
 def get_tracks_by_date():
-
-	cur = cnx.cursor()
+	
 	try:
+		cur = cnx.cursor()
 		startDate = request.args.get('startDate')
 		endDate = request.args.get('endDate')
 
@@ -298,10 +297,10 @@ def to_sql_date_format(time):
 	return datetime_object.strftime(db_time_format)
 
 def get_most_recent_play_date_on_db():
-	cur = cnx.cursor()
-	cur.execute('SELECT play_date FROM tracks ORDER BY play_date DESC LIMIT 1;')
 
 	try:
+		cur = cnx.cursor()
+		cur.execute('SELECT play_date FROM tracks ORDER BY play_date DESC LIMIT 1;')
 		date = cur.fetchone()[0] # fetchone() returns a tuple with one element
 
 	except TypeError:
