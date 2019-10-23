@@ -73,7 +73,7 @@ def get_recently_played_tracks():
 
 		except KeyError:
 			print("keyerror")
-			refresh_access_token()
+			access_token = requests.get('http://backend:5000/api/get_token').json()
 			r = requests.get('https://api.spotify.com/v1/me/player/recently-played', params={'limit':50}, headers={"Authorization": "Bearer " + access_token})
 			history = r.json()
 			continue
