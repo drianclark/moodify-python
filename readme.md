@@ -27,3 +27,5 @@ The project has now been deployed to the Google Cloud Platform, but there are st
 1. At the moment, the mood tracker can only display the valence rating per track. It would be good to be able to display the average valence per day in order to represent the changes in mood per day over a week, for example.
 
 1. Spotify's valence rating (at least for me) is not accurate at all. It would be a good idea to be able to change valence ratings for tracks in some way or another. This could be done in an ad-hoc manner via the front-end and have the new valence stored in another database or through creating a new valence rating altogether for all tracks as a function of their other attributes also provided by the API (acousticness, tempo, speechiness, etc).
+
+1. CI setup + testing
