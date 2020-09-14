@@ -21,3 +21,16 @@ services:
           - ./db_update_service:/app
         depends_on:
           - backend
+
+    frontend:
+        build: ./frontend
+        command: npm run serve -- --port 80
+        volumes:
+            - ./frontend:/frontend
+        
+        environment: 
+            - VUE_APP_URL=http://localhost:5000 
+        depends_on:
+            - backend
+        network_mode: host
+
