@@ -101,8 +101,6 @@ def trigger_tracks_update():
 		print(e)
 		return Response(status=400, mimetype='application/json')
 
-	# new_tracks = update_tracks()
-
 	if len(new_tracks) == 0:
 		return jsonify([track.asJSON() for track in new_tracks]), 204
 
@@ -160,7 +158,7 @@ def get_tracks_by_date():
 		assert(isDate(endDate))
 
 		query = f"""SELECT title, valence, play_date, spotifyid FROM tracks 
-  					WHERE play_date BETWEEN '{startDate}' and '{endDate}' 
+  					WHERE date(play_date) BETWEEN '{startDate}' and '{endDate}' 
 					ORDER BY play_date ASC;"""
 
 		with sqlite3.connect(dbFile) as connection:
