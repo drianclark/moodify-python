@@ -33,8 +33,7 @@
 
             <scatter-chart
                 v-if="loaded"
-                :styles="{height: '600px', position: 'relative'}"
-                :height="500"
+                :height="150"
                 :options="options"
                 :chart-data="chartdata"
             />
@@ -88,6 +87,10 @@ a {
     color: #42b983;
 }
 
+#scatter-chart {
+    padding-bottom: 2em;
+}
+
 #chartjs-tooltip {
     opacity: 1;
     position: absolute;
@@ -122,7 +125,7 @@ import TrackFilter from "@/components/TrackFilter.vue";
 import axios from "axios";
 import moment from "moment";
 
-const baseURL = "https://" + window.location.hostname + ":5000";
+const baseURL = "http://" + window.location.hostname + ":5000";
 
 const chunk = (arr, size) =>
     Array.from({ length: Math.ceil(arr.length / size) }, (v, i) =>
@@ -158,115 +161,44 @@ export default {
         TrackFilter
     },
     methods: {
-        updateChartDays: function(numberOfDays) {
+        updateChartDays: async function(numberOfDays) {
             this.loaded = false;
             this.loadedTracks = [];
 
-            axios
-                .get(baseURL + "/api/get_tracks_by_days", {
-                    params: {
-                        days: numberOfDays
-                    }
-                })
-                .then(response => {
-                    console.log(response);
-                    let data = [];
-                    let index = 0;
-                    let spotifyIDs = [];
-
-                    for (let track of response.data) {
-                        data.push({
-                            x: moment(track.date).toDate(),
-                            y: track.valence
-                        });
-                        spotifyIDs.push(track.spotifyid);
-
-                        track.date = moment(track.date).format("MMMM Do");
-                        this.loadedTracks.push(track);
-                        index += 1;
-                    }
-
-                    this.updateTracksInfo(spotifyIDs);
-
-                    let data_object = {
-                        datasets: [
-                            {
-                                data: data,
-                                fill: false,
-                                showLine: true,
-                                lineTension: 0,
-                                borderColor: "white"
+            let res = await axios.get(baseURL + "/api/get_tracks_by_days", {
+                            params: {
+                                days: numberOfDays
                             }
-                        ]
-                    };
+            });
 
-                    this.chartdata = data_object;
-                    this.updateTooltips(response);
-                    this.configureAxes();
+            let tracks = await res.data;
+            await this.updateChartInfo(tracks, res);
+            this.loaded = true;
 
-                    this.loaded = true;
-                });
+            
         },
 
-        updateChartDate: function(startDate, endDate) {
+        updateChartDate: async function(startDate, endDate) {
             this.loaded = false;
             this.loadedTracks = [];
 
-            axios
-                .get(baseURL + "/api/get_tracks_by_date", {
-                    params: {
-                        startDate: moment(startDate).format("YYYY-MM-DD"),
-                        endDate: moment(endDate).format("YYYY-MM-DD")
-                    }
-                })
-                .then(response => {
-                    let data = [];
-                    let index = 0;
-                    let spotifyIDs = [];
-
-                    for (let track of response.data) {
-                        data.push({
-                            x: moment(track.date).toDate(),
-                            y: track.valence
-                        });
-                        spotifyIDs.push(track.spotifyid);
-
-                        track.date = moment(track.date).format("MMMM Do");
-                        this.loadedTracks.push(track);
-                        index += 1;
-                    }
-
-                    this.spotifyids = spotifyIDs;
-
-                    console.log(response);
-                    this.updateTracksInfo(spotifyIDs);
-
-                    let data_object = {
-                        datasets: [
-                            {
-                                data: data,
-                                fill: false,
-                                showLine: true,
-                                lineTension: 0,
-                                borderColor: "white"
+            let res = await axios.get(baseURL + "/api/get_tracks_by_date", {
+                            params: {
+                                startDate: moment(startDate).format("YYYY-MM-DD"),
+                                endDate: moment(endDate).format("YYYY-MM-DD")
                             }
-                        ]
-                    };
+            });
 
-                    this.chartdata = data_object;
-                    this.updateTooltips(response);
-                    this.configureAxes();
-
-                    this.loaded = true;
-                });
+            let tracks = await res.data;
+            await this.updateChartInfo(tracks, res);
+            this.loaded = true;
         },
 
         updateTracksInfo: async function(spotifyIDs) {
-            tracksinfo = {};
             for (let idArray of chunk(spotifyIDs, 50)) {
-                let response = await getTracksInfo(idArray.join(","));
+                let info = await getTracksInfo(idArray.join(","));
 
-                for (let trackInfo of response.data.tracks) {
+                for (let trackInfo of info) {
                     let spotifyID = trackInfo.id;
                     let currentInfo = {
                         artists: [],
@@ -284,6 +216,43 @@ export default {
 
         },
 
+        updateChartInfo: async function(tracks, response) {
+            let data = [];
+            let index = 0;
+            let spotifyIDs = [];
+
+            for (let track of tracks) {
+                data.push({
+                    x: moment(track.playDate).toDate(),
+                    y: track.valence
+                });
+                spotifyIDs.push(track.spotifyID);
+
+                track.playDate = moment(track.playDate).format("MMMM Do");
+                this.loadedTracks.push(track);
+                index += 1;
+
+            }
+
+            await this.updateTracksInfo(spotifyIDs);
+
+            let data_object = {
+                datasets: [
+                    {
+                        data: data,
+                        fill: false,
+                        showLine: true,
+                        lineTension: 0,
+                        borderColor: "white"
+                    }
+                ]
+            };
+
+            this.chartdata = data_object;
+            this.updateTooltips(response);
+            this.configureAxes();
+        },
+
         dateFormatter: function(date) {
             return moment(date).format("DD-MM-YYYY");
         },
@@ -291,7 +260,6 @@ export default {
         triggerTracksUpdate: function() {
             this.trackUpdateLoading = true;
             axios.get(baseURL + "/api/update_tracks").then(response => {
-                console.log(response);
                 this.trackUpdateLoading = false;
             });
         },
@@ -305,7 +273,7 @@ export default {
                 callbacks: {
                     label: function(tooltipItem, data) {
                         let spotifyid =
-                            response.data[tooltipItem.index].spotifyid;
+                            response.data[tooltipItem.index].spotifyID;
                         return spotifyid;
                     }
                 }
@@ -313,6 +281,10 @@ export default {
         },
 
         configureAxes: function() {
+            this.options.legend = {
+                display: false
+            }
+
             this.options.scales = {
                 gridLines: {
                     color: "white"
@@ -356,75 +328,23 @@ export default {
     data: () => ({
         loaded: false,
         chartdata: null,
-        options: null,
+        options: {},
         trackUpdateLoading: false,
         loadedTracks: []
     }),
 
     async mounted() {
         this.loaded = false;
-        try {
-            const response = await axios.get(
-                baseURL + "/api/get_tracks_by_days",
-                {
-                    params: {
-                        days: 1
-                    }
-                }
-            );
 
-            let data = [];
-            let index = 0;
-            let spotifyIDs = [];
+        let res = await axios.get(baseURL + "/api/get_tracks_by_days", {
+                        params: {
+                            days: 1
+                        }
+        });
 
-            for (let track of response.data) {
-                data.push({ x: moment(track.date).toDate(), y: track.valence });
-                spotifyIDs.push(track.spotifyid);
-
-                track.date = moment(track.date).format("MMMM Do");
-                this.loadedTracks.push(track);
-                index += 1;
-            }
-
-            this.updateTracksInfo(spotifyIDs);
-
-            let data_object = {
-                datasets: [
-                    {
-                        data: data,
-                        fill: false,
-                        showLine: true,
-                        lineTension: 0,
-                        borderColor: "white"
-                    }
-                ]
-            };
-
-            this.chartdata = data_object;
-            this.options = {
-                maintainAspectRatio: false,
-                legend: {
-                    display: false
-                },
-                elements: {
-                    point: {
-                        radius: 4,
-                        backgroundColor: "white"
-                    }
-                },
-                layout: {
-                    padding: {
-                        bottom: 50
-                    }
-                }
-            };
-            this.updateTooltips(response);
-            this.configureAxes();
-
-            this.loaded = true;
-        } catch (e) {
-            console.error(e);
-        }
+        let tracks = await res.data;
+        await this.updateChartInfo(tracks, res);
+        this.loaded = true;
     }
 };
 
@@ -438,24 +358,16 @@ function getAccessToken() {
     });
 }
 
-function getTracksInfo(spotifyids) {
-    // interceptor for handling authentication errors
+async function getTracksInfo(spotifyids) {
+    let res = await axios.get(baseURL + '/api/get_token');
+    let accessToken = await res.data;
 
-    var refresh_interceptor = axios.interceptors.response.use(null, error => {
-        if (error.config && error.response && error.response.status === 401) {
-            return axios.get(baseURL + "/api/get_token").then(token => {
-                error.config.headers.Authorization = "Bearer " + token.data;
-                return axios.request(error.config);
-            });
-        }
-
-        return Promise.reject(error);
-    });
-
-    return axios.get("https://api.spotify.com/v1/tracks", {
+    let res1 = await axios.get("https://api.spotify.com/v1/tracks", {
         headers: { Authorization: "Bearer " + accessToken },
         params: { ids: spotifyids }
     });
+
+    return res1.data.tracks;
 }
 
 var customTooltips = function(tooltip) {
@@ -490,6 +402,7 @@ var customTooltips = function(tooltip) {
         let spotifyid = tooltip.body[0].lines[0];
 
         let artists = [];
+
         let title = tracksinfo[spotifyid].title;
         let imgUrl = tracksinfo[spotifyid].imgUrl;
         for (let artist of tracksinfo[spotifyid].artists) {

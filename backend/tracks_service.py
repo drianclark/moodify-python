@@ -102,10 +102,10 @@ def trigger_tracks_update():
 	# new_tracks = update_tracks()
 
 	if len(new_tracks) == 0:
-		return jsonify([track.asJSON for track in new_tracks]), 204
+		return jsonify([track.asJSON() for track in new_tracks]), 204
 
 	else:
-		return jsonify([track.asJSON for track in new_tracks])
+		return jsonify([track.asJSON() for track in new_tracks])
 
 @app.route('/api/get_tracks_by_days')
 def get_tracks_by_days():
@@ -183,7 +183,7 @@ def get_tracks_by_date():
 	if len(tracks) == 0:
 		return jsonify(tracks)
 	else:
-		return jsonify(tracks), 200
+		return jsonify(tracks)
 
 @app.route('/api/get_token')
 def handle_token_request():
@@ -235,8 +235,8 @@ def get_recently_played_tracks():
 												headers={"Authorization": "Bearer " + access_token}).json()['audio_features']
    
 			print('entering for loop')
-			print(tracks[0])
 			for i in range(len(audio_features)):
+				tracks[i].valence = audio_features[i]['valence']
 				tracks[i].acousticness = audio_features[i]['acousticness']
 				tracks[i].danceability = audio_features[i]['danceability']
 				tracks[i].energy = audio_features[i]['energy']
