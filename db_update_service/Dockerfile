@@ -1,18 +1,9 @@
-FROM ubuntu:18.04
+FROM python:3.9-rc-slim-buster
 
-MAINTAINER Adrian David "dreiclark@gmail.com"
-
-RUN apt-get update -y && apt-get install -y python3-pip python3-dev libmysqlclient-dev
-
-# COPY ./requirements.txt /app/requirements.txt
 COPY . /app
-
 WORKDIR /app
-
 RUN pip3 install -r requirements.txt
-
-# COPY . /app
 
 ENTRYPOINT [ "python3" ]
 
-CMD [ "app/update_service.py" ]
+CMD [ "update_service.py" ]
