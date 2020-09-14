@@ -1,5 +1,6 @@
 <script>
 import { Scatter, mixins } from 'vue-chartjs'
+import axios from 'axios'
 
 const { reactiveProp } = mixins
 

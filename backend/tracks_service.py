@@ -1,20 +1,22 @@
 #!/usr/bin/env python3
 
-from flask import Flask, redirect, request, jsonify, Response, url_for
-from flask_cors import CORS
-import mysql.connector
+import base64
+import json
+import logging
+import os
 from datetime import datetime
-from dotenv import load_dotenv
 import dateutil.parser
 import requests
-import json
-import os
-import base64
-import logging
+import sqlite3
+from dotenv import load_dotenv
+from flask import Flask, Response, jsonify, redirect, request, url_for
+from flask_cors import CORS
+from requests.models import StreamConsumedError
+from Track import Track
 
+from statistics import mean
 
 logging.basicConfig(level=logging.DEBUG)
-# logging.getLogger('apscheduler').setLevel(logging.DEBUG)
 app = Flask(__name__)
 CORS(app)
 
@@ -24,13 +26,6 @@ client_id = os.getenv('CLIENT_ID')
 client_secret = os.getenv('CLIENT_SECRET')
 access_token = os.getenv('ACCESS_TOKEN')
 refresh_token = os.getenv('REFRESH_TOKEN')
-
-
-gcp_sql_host= ''
-# connecting to database
-# cnx = mysql.connector.connect(user='root', password='mayllah11', host='35.246.100.216', database='db')
-cnx = mysql.connector.connect(user='root', password='admin1', host='db', database='db')
-print(cnx.is_connected())
 
 db_time_format = '%Y-%m-%d %H:%M:%S'
 
@@ -100,7 +95,6 @@ def callback():
 				f.write(envs)
 
 			except Exception as e:
-				print("exception boi")
 				print(e)
 
 	load_dotenv()
@@ -114,6 +108,7 @@ def callback():
 def trigger_tracks_update():
 	try:
 		new_tracks = update_tracks()
+		print("updated tracks")
 
 	except Exception as e:
 		print(e)
@@ -122,35 +117,42 @@ def trigger_tracks_update():
 	# new_tracks = update_tracks()
 
 	if len(new_tracks) == 0:
-		return jsonify(new_tracks), 204
+		return jsonify([track.asJSON for track in new_tracks]), 204
 
 	else:
-		return jsonify(new_tracks)
+		return jsonify([track.asJSON for track in new_tracks])
 
 @app.route('/api/get_tracks_by_days')
 def get_tracks_by_days():
 
 	try:
-		cur = cnx.cursor()
-		days = request.args.get('days')
-		# for now, returns the tracks listened to over the last 48 hours
 		tracks = []
+  
+		days = request.args.get('days')
+		assert(days.isnumeric())
+  
+		query = f"""SELECT spotifyid, title, valence, play_date FROM tracks
+		WHERE play_date >= date('now','-{days} days') ORDER BY play_date ASC;
+		"""
+		with sqlite3.connect('../db/test.db') as connection:
+			cur = connection.cursor()
+			cur.execute(query)  
+			queriedTracks = cur.fetchall()
+   
+		print(queriedTracks)
 
-		query = """SELECT title, valence, play_date, spotifyid FROM tracks
-		WHERE play_date >= date(now()) - INTERVAL (%s) DAY ORDER BY play_date ASC;"""		
+		for (spotifyid, title, valence, date) in queriedTracks:
+			current_track = Track(
+				id=spotifyid,
+				title=title,
+				valence=valence,
+				playDate=date
+			)
+			tracks.append(current_track.asJSON())
 
-		cur.execute(query, (days,))
-
-		for (title, valence, date, spotifyid) in cur:
-			current_track = {'title':title, 'valence':valence, 'date':date, 'spotifyid':spotifyid}
-			print(date)
-			tracks.append(current_track)
-
-	except:
+	except Exception as e:
+		print(e)
 		return Response(status=500, mimetype='application/json')
-
-	finally:
-		cur.close()
 
 	if len(tracks) == 0:
 		return jsonify(tracks), 204
@@ -160,31 +162,38 @@ def get_tracks_by_days():
 
 @app.route('/api/get_tracks_by_date')
 def get_tracks_by_date():
-	
-	try:
-		cur = cnx.cursor()
-		startDate = request.args.get('startDate')
-		endDate = request.args.get('endDate')
 
+	try:
 		tracks = []
 
-		print("before query")
+		startDate = request.args.get('startDate')
+		endDate = request.args.get('endDate')
+  
+		assert(isDate(startDate))
+		assert(isDate(endDate))
 
-		query = """SELECT title, valence, play_date, spotifyid FROM tracks WHERE
-					CAST(play_date as DATE) BETWEEN CAST(%s AS DATE) and CAST(%s AS DATE) ORDER BY play_date ASC;"""
+		query = f"""SELECT title, valence, play_date, spotifyid FROM tracks 
+  					WHERE play_date BETWEEN '{startDate}' and '{endDate}' 
+    				ORDER BY play_date ASC;"""
 
-		
-		cur.execute(query, (startDate, endDate,))
+		with sqlite3.connect('../db/test.db') as connection:
+			connection.set_trace_callback(print)
+			cur = connection.cursor()
+			cur.execute(query)
+			queriedTracks = cur.fetchall()
 
-		for (title, valence, date, spotifyid) in cur:
-			current_track = {'title':title, 'valence':valence, 'date':date, 'spotifyid':spotifyid}
-			tracks.append(current_track)
+		for (title, valence, date, spotifyid) in queriedTracks:
+			current_track = Track(
+				id=spotifyid,
+				title=title,
+				valence=valence,
+				playDate=date
+			)
+			tracks.append(current_track.asJSON())
 
-	except:
+	except Exception as e:
+		print(e)
 		return Response(status=500, mimetype='application/json')
-
-	finally:
-		cur.close()
 
 	if len(tracks) == 0:
 		return jsonify(tracks)
@@ -219,54 +228,50 @@ def request_token():
 def get_recently_played_tracks():
 	global access_token
 
-	r = requests.get('https://api.spotify.com/v1/me/player/recently-played', params={'limit':50}, headers={"Authorization": "Bearer " + access_token})
-
-	history = r.json()
+	print('getting tracks')
+	response = requests.get(
+			 'https://api.spotify.com/v1/me/player/recently-played', 
+			params={'limit':50}, 
+			headers={"Authorization": "Bearer " + access_token}).json()
 
 	tracks = []
-	current_track = {}	# empty track object used to add the current track to tracks array
 	spotifyIDs = []
 
-	# attempt to get recently played tracks from spotify api, if authentication fails, get new access token then retry
+	# attempt to get recently played tracks from spotify api, 
+	 # if authentication fails, get new access token then retry
 	while True:
 		try:
-			print("doing items")
-			for item in history['items']:	# iterate through all track objects in recently played tracks object
-				# ID
-				current_track['id'] = item['track']['id']
-				spotifyIDs.append(current_track['id'])
-
-				# TITLE
-				current_track['title'] = item['track']['name']
-
-				# DATE
-				current_track['date'] = item['played_at']
-
+			for item in response['items']:	# iterate through all track objects in recently played tracks object
+				current_track = Track(
+					id=item['track']['id'],
+					title=item['track']['name'],
+					playDate=item['played_at'],
+					valence=0
+				)			
 				tracks.append(current_track)
-				current_track = {} # reset the current track
-
-			print("for finished")
-			audio_features_array = requests.get('https://api.spotify.com/v1/audio-features',
+						
+			spotifyIDs = [track.spotifyID for track in tracks]
+			audio_features = requests.get('https://api.spotify.com/v1/audio-features',
 												params={'ids':','.join(spotifyIDs)},
 												headers={"Authorization": "Bearer " + access_token}).json()['audio_features']
-			# print(audio_features_array)
-			for i in range(len(audio_features_array)):
-				tracks[i]['id'] = audio_features_array[i]['id']
-				# if i == 0:
-				# 	print(tracks[i])
-				# 	print(audio_features_array[i])
-				tracks[i]['valence'] = audio_features_array[i]['valence']
-				tracks[i]['acousticness'] = audio_features_array[i]['acousticness']
-				tracks[i]['danceability'] = audio_features_array[i]['danceability']
-				tracks[i]['energy'] = audio_features_array[i]['energy']
-				tracks[i]['speechiness'] = audio_features_array[i]['speechiness']
-				tracks[i]['tempo'] = audio_features_array[i]['tempo']
+   
+			print('entering for loop')
+			print(tracks[0])
+			for i in range(len(audio_features)):
+				tracks[i].acousticness = audio_features[i]['acousticness']
+				tracks[i].danceability = audio_features[i]['danceability']
+				tracks[i].energy = audio_features[i]['energy']
+				tracks[i].speechiness = audio_features[i]['speechiness']
+				tracks[i].tempo = audio_features[i]['tempo']
+			print('exited for loop')
 
 		except KeyError:
 			print("keyerror")
 			refresh_access_token()
-			r = requests.get('https://api.spotify.com/v1/me/player/recently-played', params={'limit':50}, headers={"Authorization": "Bearer " + access_token})
-			history = r.json()
+			response = requests.get(
+							'https://api.spotify.com/v1/me/player/recently-played', 
+							params={'limit':50}, 
+							headers={"Authorization": "Bearer " + access_token}).json()
 			continue
 
 		break
@@ -274,20 +279,36 @@ def get_recently_played_tracks():
 	return tracks
 
 def push_tracks_to_db(tracks):
+	print('pushing to db')
 	for track in tracks:
-		track['date'] = to_sql_date_format(track['date'])
-
-	cur = cnx.cursor()
-
-	sql = """INSERT INTO `tracks` (spotifyid, title, valence, play_date, acousticness, danceability, energy, speechiness, tempo)
-	VALUES (%(id)s,%(title)s,%(valence)s,%(date)s,%(acousticness)s,%(danceability)s,%(energy)s,%(speechiness)s,%(tempo)s)"""
-
-	cur.executemany(sql, tracks)
-	cnx.commit()
-	cur.close()
-
-	print("pushed to db")
-	print(tracks)
+		track.playDate = to_sql_date_format(track.playDate)
+  
+	try:
+		sql = """INSERT INTO tracks 
+		(spotifyid, title, play_date, valence, acousticness, danceability, energy, speechiness, tempo)
+		VALUES (?,?,?,?,?,?,?,?,?)"""
+  
+		tracksInsert = [(
+			track.spotifyID,
+			track.title,
+			track.playDate,
+			track.valence,
+			track.acousticness,
+			track.danceability,
+			track.energy,
+			track.speechiness,
+			track.tempo
+		) for track in tracks]
+  
+		with sqlite3.connect('../db/test.db') as connection:
+			cur = connection.cursor()
+			cur.executemany(sql, tracksInsert)  
+			connection.commit()
+   
+		print('committed to db')
+  
+	except Exception as e:
+		print(e)
 
 	return tracks
 
@@ -296,20 +317,27 @@ def to_sql_date_format(time):
 
 	return datetime_object.strftime(db_time_format)
 
-def get_most_recent_play_date_on_db():
+def get_most_recent_play_date_on_db() -> str:
 
+	print('getting date')
 	try:
-		cur = cnx.cursor()
-		cur.execute('SELECT play_date FROM tracks ORDER BY play_date DESC LIMIT 1;')
+		with sqlite3.connect('../db/test.db') as connection:
+			cur = connection.cursor()
+			cur.execute('SELECT play_date FROM tracks ORDER BY play_date DESC LIMIT 1;')
+   
 		date = cur.fetchone()[0] # fetchone() returns a tuple with one element
 
 	except TypeError:
-		date = datetime.min
-
-	finally:
-		cur.close()
+		date = str(datetime.min)
 
 	return date
+
+def isDate(d: str) -> bool:
+    try:
+        dateutil.parser.parse(d)
+        return True
+    except:
+        return False
 
 def refresh_access_token():
 	try:
@@ -352,7 +380,7 @@ def update_tokens(new_access_token, new_refresh_token):
 Updating the database:
 
 1. Get the most recent track's (on the database) play date /
-2. Fetch the most recent tracks from the API, find the overlap with the database track (if it exists)
+2. 1 the most recent tracks from the API, find the overlap with the database track (if it exists)
 		if there is overlap:
 			only add the more recent tracks
 		else:
@@ -360,16 +388,13 @@ Updating the database:
 '''
 
 def update_tracks():
-	print("updating tracks")
-
-	date = get_most_recent_play_date_on_db()
-
+	date = datetime.strptime(get_most_recent_play_date_on_db(), db_time_format)
 	tracks = get_recently_played_tracks()
 
 	# find the overlap in most recent play date between the fetched tracks and the database items
 	index = 0
 	for track in tracks:
-		datetime_object = dateutil.parser.isoparse(track['date']).replace(tzinfo=None, microsecond=0) # converting to datetime object (no microsecond or tzinfo) to allow comparison
+		datetime_object = dateutil.parser.isoparse(track.playDate).replace(tzinfo=None, microsecond=0) # converting to datetime object (no microsecond or tzinfo) to allow comparison
 		# if current track's play date is older than or the same as the most recent in the database, end the loop
 		if datetime_object <= date:
 			break
@@ -378,10 +403,7 @@ def update_tracks():
 
 	# get all the tracks that are more recent than the one in the database
 	new_tracks = tracks[:index]
-	# print(new_tracks)
-
 	push_tracks_to_db(new_tracks)
-	# sched.add_job(update_tracks, 'interval', minutes=2)
 
 	return new_tracks
 

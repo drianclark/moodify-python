@@ -1,0 +1,11 @@
+{
+    "python.linting.pylintEnabled": true,
+    "python.linting.enabled": true,
+    "python.pythonPath": "/home/adrian/anaconda3/envs/smt/bin/python",
+    "python.analysis.extraPaths": [
+        "/mnt/35DEF651197BE5BB/spotify-mood-tracker/backend"
+    ],
+    "python.analysis.diagnosticSeverityOverrides": {
+        "reportUnboundVariable": "none"
+    }
+}
