@@ -24,6 +24,8 @@ CORS(app)
 client_id = None
 client_secret = None
 
+dbFile = '../db/tracks.db'
+
 # loading authentication
 try:
 	with open('authentication.json') as f:
@@ -119,7 +121,7 @@ def get_tracks_by_days():
 		query = f"""SELECT spotifyid, title, valence, play_date FROM tracks
 		WHERE play_date >= date('now','-{days} days') ORDER BY play_date ASC;
 		"""
-		with sqlite3.connect('../db/test.db') as connection:
+		with sqlite3.connect(dbFile) as connection:
 			cur = connection.cursor()
 			cur.execute(query)  
 			queriedTracks = cur.fetchall()
@@ -161,7 +163,7 @@ def get_tracks_by_date():
   					WHERE play_date BETWEEN '{startDate}' and '{endDate}' 
 					ORDER BY play_date ASC;"""
 
-		with sqlite3.connect('../db/test.db') as connection:
+		with sqlite3.connect(dbFile) as connection:
 			connection.set_trace_callback(print)
 			cur = connection.cursor()
 			cur.execute(query)
@@ -279,7 +281,7 @@ def push_tracks_to_db(tracks):
 			track.tempo
 		) for track in tracks]
   
-		with sqlite3.connect('../db/test.db') as connection:
+		with sqlite3.connect(dbFile) as connection:
 			cur = connection.cursor()
 			cur.executemany(sql, tracksInsert)  
 			connection.commit()
@@ -300,7 +302,7 @@ def get_most_recent_play_date_on_db() -> str:
 
 	print('getting date')
 	try:
-		with sqlite3.connect('../db/test.db') as connection:
+		with sqlite3.connect(dbFile) as connection:
 			cur = connection.cursor()
 			cur.execute('SELECT play_date FROM tracks ORDER BY play_date DESC LIMIT 1;')
    
