@@ -5,10 +5,11 @@ import json
 import logging
 import os
 from datetime import datetime
+from os import access
 import dateutil.parser
 import requests
 import sqlite3
-from dotenv import load_dotenv
+import sys
 from flask import Flask, Response, jsonify, redirect, request, url_for
 from flask_cors import CORS
 from requests.models import StreamConsumedError
@@ -20,12 +21,28 @@ logging.basicConfig(level=logging.DEBUG)
 app = Flask(__name__)
 CORS(app)
 
-# loading env variables
-load_dotenv()
-client_id = os.getenv('CLIENT_ID')
-client_secret = os.getenv('CLIENT_SECRET')
-access_token = os.getenv('ACCESS_TOKEN')
-refresh_token = os.getenv('REFRESH_TOKEN')
+client_id = None
+client_secret = None
+
+# loading authentication
+try:
+	with open('authentication.json') as f:
+		data = json.load(f)
+		client_id = data['client_id']
+		client_secret = data['client_secret']
+except FileNotFoundError:
+	print('No authentication information found')
+	sys.exit()
+	
+try:
+	with open('tokens.json') as f:
+		data = json.load(f)
+		access_token = data['access_token']
+		refresh_token = data['refresh_token']
+
+except FileNotFoundError:
+	refresh_access_token()
+
 
 db_time_format = '%Y-%m-%d %H:%M:%S'
 
@@ -36,7 +53,7 @@ def initialize():
 		code = requests.get('https://accounts.spotify.com/authorize', params={'client_id':client_id, 'response_type':'code', 'redirect_uri':'http://localhost:5000/api/request_token/callback', 'scope':'user-read-recently-played'})
 
 @app.route('/')
-def hello_world():
+def root():
 	print("In root")
 	return access_token
 
@@ -48,9 +65,6 @@ def home():
 						'response_type':'code', 
 						'redirect_uri':'http://localhost:5000/api/request_token/callback', 
 						'scope':'user-read-recently-played'})
-	
-	print(code.url)
-
 	return redirect(code.url)
 
 @app.route('/api/request_token/callback')
@@ -65,42 +79,13 @@ def callback():
 	access_token = r.json()['access_token']
 	refresh_token = r.json()['refresh_token']
 
-	# add new or replace tokens
+	tokens = {
+		'access_token': access_token,
+		'refresh_token': refresh_token
+	}
 
-	envs = open('.env', 'r').read()
-
-	# if tokens don't exist, just append the token entries to the env file
-	if 'ACCESS_TOKEN' not in envs or 'REFRESH_TOKEN' not in envs:
-		print("no envs")
-		with open('.env', 'a') as f:
-			try:
-				f.write('\n')
-				f.write('ACCESS_TOKEN={}\n'.format(access_token))
-				f.write('REFRESH_TOKEN={}'.format(refresh_token))
-
-			except Exception as e:
-				print(e)
-
-	# if tokens exist, replace their entries on the envs variable and write this to the env file
-	else:
-		print(envs+'\n')
-		envs_array = envs.split('\n')
-		envs_array = ['ACCESS_TOKEN={}'.format(access_token) if 'ACCESS_TOKEN' in e else e for e in envs_array]
-		envs_array = ['REFRESH_TOKEN={}'.format(refresh_token) if 'REFRESH_TOKEN' in e else e for e in envs_array]
-		envs = '\n'.join(envs_array)
-		print(envs+'\n')
-
-		with open('.env', 'w') as f:
-			try:
-				f.write(envs)
-
-			except Exception as e:
-				print(e)
-
-	load_dotenv()
-
-	access_token = os.getenv('ACCESS_TOKEN')
-	refresh_token = os.getenv('REFRESH_TOKEN')
+	with open('tokens.json') as f:
+		json.dump(tokens, f)
 
 	return "Access token is {} and refresh token is {}".format(access_token, refresh_token)
 
@@ -174,7 +159,7 @@ def get_tracks_by_date():
 
 		query = f"""SELECT title, valence, play_date, spotifyid FROM tracks 
   					WHERE play_date BETWEEN '{startDate}' and '{endDate}' 
-    				ORDER BY play_date ASC;"""
+					ORDER BY play_date ASC;"""
 
 		with sqlite3.connect('../db/test.db') as connection:
 			connection.set_trace_callback(print)
@@ -215,12 +200,6 @@ def handle_token_request():
 		refresh_access_token()
 
 	return jsonify(access_token)
-
-def spotify_login():
-	# get a token from the spotify API
-	token = requests.get('https://accounts.spotify.com/authorize', params={'client_id':client_id, 'response_type':'code', 'redirect_uri':'http://localhost:5000/callback', 'scope':'user-read-recently-played'})
-
-	return redirect(token.url)
 
 def request_token():
 	code = requests.get('https://accounts.spotify.com/authorize', params={'client_id':client_id, 'response_type':'code', 'redirect_uri':'http://localhost:5000/api/request_token/callback', 'scope':'user-read-recently-played'})
@@ -333,48 +312,29 @@ def get_most_recent_play_date_on_db() -> str:
 	return date
 
 def isDate(d: str) -> bool:
-    try:
-        dateutil.parser.parse(d)
-        return True
-    except:
-        return False
+	try:
+		dateutil.parser.parse(d)
+		return True
+	except:
+		return False
 
 def refresh_access_token():
-	try:
-		access_token = os.getenv('ACCESS_TOKEN')
-		refresh_token = os.getenv('REFRESH_TOKEN')
-
-	except:
-		print("Access token not available, please get one first")
+	global refresh_token
+	print(refresh_token)
 
 	auth_header = base64.b64encode((client_id + ':' + client_secret).encode('ascii'))
 	head = {'Authorization': 'Basic {}'.format(auth_header.decode('ascii'))}
-	print(refresh_token)
-	r = requests.post('https://accounts.spotify.com/api/token', data={'grant_type': 'refresh_token', 'refresh_token': refresh_token}, headers=head).json()
-	print(r)
-	update_tokens(r["access_token"], refresh_token)
-
-def update_tokens(new_access_token, new_refresh_token):
-	global access_token
-	global refresh_token
-	access_token = new_access_token
-	refresh_token = new_refresh_token
-
-	envs = open('.env', 'r').read()
-	envs_array = envs.split('\n')
-	envs_array = ['ACCESS_TOKEN={}'.format(access_token) if 'ACCESS_TOKEN' in e else e for e in envs_array]
-	envs_array = ['REFRESH_TOKEN={}'.format(refresh_token) if 'REFRESH_TOKEN' in e else e for e in envs_array]
-	envs = '\n'.join(envs_array)
-
-	with open('.env', 'w') as f:
-		try:
-			f.write(envs)
-
-		except Exception as e:
-			print("exception boi")
-			print(e)
-
-	load_dotenv()
+	r = requests.post('https://accounts.spotify.com/api/token', 
+				   data={'grant_type': 'refresh_token', 'refresh_token': refresh_token}, 
+				   headers=head).json()
+ 
+	tokens = {
+		'access_token': r['access_token'],
+		'refresh_token': refresh_token
+	}
+ 
+	with open('tokens.json', 'w') as f:
+		json.dump(tokens, f)
 
 '''
 Updating the database:
