@@ -6,11 +6,14 @@ services:
         build: ./backend
         environment:
             PYTHONUNBUFFERED: 1
+            BASE_URL: "http://localhost:5001"
+            
         volumes:
             - ./backend:/app
             - ./db:/db
+        restart: unless-stopped
         ports:
-            - "5000:5000"
+            - "5001:5000"
 
 
     db_update_service:
@@ -19,6 +22,7 @@ services:
           PYTHONUNBUFFERED: 1
         volumes:
           - ./db_update_service:/app
+        restart: unless-stopped
         depends_on:
           - backend
 
@@ -29,7 +33,7 @@ services:
             - ./frontend:/frontend
         
         environment: 
-            - VUE_APP_URL=http://localhost:5000 
+            - VUE_APP_URL=http://localhost:5001 
         depends_on:
             - backend
         network_mode: host
