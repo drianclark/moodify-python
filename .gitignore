@@ -102,4 +102,3 @@ db_bak/
 
 *.log
 *.env
-Dockerfile*
