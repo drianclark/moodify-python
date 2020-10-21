@@ -115,7 +115,7 @@ def trigger_tracks_update():
         return jsonify([track.asJSON() for track in new_tracks]), 204
 
     else:
-        return jsonify([track.asJSON() for track in new_tracks])
+        return jsonify([track.asJSON() for track in new_tracks]), 200
 
 @app.route('/api/get_tracks_by_days')
 def get_tracks_by_days():
