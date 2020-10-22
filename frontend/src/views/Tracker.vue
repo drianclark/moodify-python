@@ -125,7 +125,7 @@ import TrackFilter from "@/components/TrackFilter.vue";
 import axios from "axios";
 import moment from "moment";
 
-const baseURL = "http://" + window.location.hostname + ":5000";
+const baseURL = process.env.VUE_APP_URL;
 
 const chunk = (arr, size) =>
     Array.from({ length: Math.ceil(arr.length / size) }, (v, i) =>
