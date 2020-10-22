@@ -23,9 +23,10 @@ while True:
 	print(f"Added {len(new_tracks)} new tracks")
 	print()
 	print(f"Most recent tracks:")
-	print('\n'.join([f'"{track["title"]}" played at {track["playDate"]}' for track in new_tracks[-5:]]))
+	print('\n'.join([f'"{track["title"]}" played at {track["playDate"]}' for track in new_tracks[:5]]))
 	print('*' * 20)
 
  
 	new_tracks = []
 	sleep(900)
+
