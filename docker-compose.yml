@@ -26,6 +26,13 @@ services:
         depends_on:
           - backend
 
+    db_backup_service:
+        build: ./db_backup_service
+        restart: unless-stopped
+        volumes:
+            - ./db_backup_service:/app
+            - ./db:/db
+
     frontend:
         build: ./frontend
         command: npm run serve -- --port 80
