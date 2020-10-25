@@ -2,6 +2,7 @@
 # Created by https://www.gitignore.io/api/pycharm,database
 # Edit at https://www.gitignore.io/?templates=pycharm,database
 
+logs.*
 *tokens.json
 *authentication.json
 
