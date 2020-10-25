@@ -5,5 +5,5 @@
 while true
 do
     go run backupService.go
-    sleep 16m
+    sleep 6m
 done

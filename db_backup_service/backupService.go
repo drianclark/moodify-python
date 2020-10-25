@@ -191,7 +191,7 @@ func uploadDBFile(accessToken string) {
 	_, err = client.Do(req)
 	if err != nil {
 		logger.Println(err)
-		logger.Println("Error uploading file to dropbox")
+		logger.Fatalln("Error uploading file to dropbox")
 	}
 
 	logger.Println("Successfully uploaded db file!")
