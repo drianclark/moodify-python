@@ -17,14 +17,16 @@ while True:
 		print(f'Database updated: no new tracks')
 		new_tracks = []
 		sleep(900)
-
-	print('*' * 20)
-	print(f'Database updated!')
-	print(f"Added {len(new_tracks)} new tracks")
-	print()
-	print(f"Most recent tracks:")
-	print('\n'.join([f'"{track["title"]}" played at {track["playDate"]}' for track in new_tracks[:5]]))
-	print('*' * 20)
+  
+	else:
+		print('*' * 20)
+		print(f'Database updated!')
+		print(f"Added {len(new_tracks)} new tracks")
+		print()
+		print(f"Most recent tracks:")
+		print('\n'.join([f'"{track["title"]}" played at {track["playDate"]}' for track in new_tracks[:5]]))
+		print('*' * 20)
+		print()
 
  
 	new_tracks = []
