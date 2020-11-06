@@ -1,4 +1,4 @@
-from time import clock_getres, sleep
+from time import sleep
 from json import JSONDecodeError
 import requests
 
@@ -8,9 +8,10 @@ while True:
 	try:
 		new_tracks = requests.get('http://backend:5000/api/update_tracks', timeout=3).json()
   
-	except TimeoutError:
+	except (TimeoutError, requests.exceptions.ReadTimeout):
+		print("Timed out")
 		print("Retrying...")
-		sleep(3)
+		sleep(10)
 		continue
 	
 	except JSONDecodeError:
