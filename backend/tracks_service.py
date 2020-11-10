@@ -222,6 +222,36 @@ def get_daily_mean_by_days():
 
     return jsonify(daily_means), 200
 
+@app.route('/api/get_daily_mean_by_date')
+def get_daily_mean_by_date():
+
+    try:
+        startDate = request.args.get('startDate')
+        endDate = request.args.get('endDate')
+        
+        assert(isDate(startDate))
+        assert(isDate(endDate))
+  
+        query = f"""
+        SELECT strftime("%Y-%m-%d", play_date), avg(valence)
+        FROM tracks
+        WHERE date(play_date) BETWEEN '{startDate}' and '{endDate}' 
+        GROUP BY strftime("%Y-%m-%d", play_date)
+        ORDER BY play_date;
+        """
+        with sqlite3.connect(dbFile) as connection:
+            cur = connection.cursor()
+            cur.execute(query)  
+            query_result = cur.fetchall()
+
+    except Exception as e:
+        print(e)
+        return Response(status=500, mimetype='application/json')
+    
+    daily_means = { daily_mean[0]: round(daily_mean[1], 3) for daily_mean in query_result}
+
+    return jsonify(daily_means), 200
+
 @app.route('/api/get_token')
 def handle_token_request():
     global access_token
