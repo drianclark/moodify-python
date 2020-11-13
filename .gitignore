@@ -2,9 +2,11 @@
 # Created by https://www.gitignore.io/api/pycharm,database
 # Edit at https://www.gitignore.io/?templates=pycharm,database
 
+.vscode
 logs.*
 *tokens.json
 *authentication.json
+__pycache__
 
 ### Database ###
 *.accdb
