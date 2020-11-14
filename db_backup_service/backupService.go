@@ -197,32 +197,51 @@ func uploadDBFile(accessToken string) {
 	logger.Println("Successfully uploaded db file!")
 }
 
-func getUploadedFileSize(accessToken string) {
+func getUploadedFileSize(accessToken string) int64 {
 	url := "https://api.dropboxapi.com/2/files/get_metadata"
 
-	client := &http.Client{}
-	req, err := http.NewRequest("POST", url)
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", accessToken))
-	
-	body := map[string]string{
-		"path": uploadPath
+	headers := req.Header{
+		"Content-Type":  "application/json",
+		"Authorization": fmt.Sprintf("Bearer %s", accessToken),
 	}
-	req.BodyJSON(&body)
 
-	res, err := client.Do(req)
-	logger.Println(res)
+	body := map[string]string{
+		"path": uploadPath,
+	}
+
+	res, err := req.Post(url, headers, req.BodyJSON(&body))
+	if err != nil {
+		fmt.Println(err)
+	}
+
+	var fileSize int64 = int64(responseToMap(res)["size"].(float64))
+
+	return fileSize
+}
+
+func getLocalFileSize() int64 {
+	// file, err := os.Open(dbFile)
+	// if err != nil {
+	// 	logger.Println(err)
+	// }
+
+	fileInfo, err := os.Stat(dbFile)
+	if err != nil {
+		fmt.Println(err)
+	}
+
+	fileSize := fileInfo.Size()
+
+	return fileSize
 }
 
 func main() {
-	accessToken, refreshToken := getTokensFromFile()
+
+	accessToken, _ := getTokensFromFile()
 
 	logger.Println(strings.Repeat("*", 20))
-	logger.Println("Tokens successfully read from file")
+	logger.Println("Tokens successfully read from file!")
 	logger.Println()
-	logger.Println("Access Token:", accessToken)
-	logger.Println("Refresh Token:", refreshToken)
-	logger.Println(strings.Repeat("*", 20))
 
 	// checking if token is still valid and requesting a new
 	// one if not
@@ -232,5 +251,17 @@ func main() {
 		requestNewToken()
 	}
 
-	uploadDBFile(accessToken)
+	backedUpFileSize := getUploadedFileSize(accessToken)
+	localFileSize := getLocalFileSize()
+
+	if backedUpFileSize >= localFileSize {
+		logger.Println("Uploading db file")
+		uploadDBFile(accessToken)
+	} else {
+		logger.Println("Local db file is smaller- not uploading")
+	}
+
+	logger.Println(strings.Repeat("*", 20))
+	logger.Println()
+
 }
