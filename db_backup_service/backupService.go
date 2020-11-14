@@ -197,6 +197,23 @@ func uploadDBFile(accessToken string) {
 	logger.Println("Successfully uploaded db file!")
 }
 
+func getUploadedFileSize(accessToken string) {
+	url := "https://api.dropboxapi.com/2/files/get_metadata"
+
+	client := &http.Client{}
+	req, err := http.NewRequest("POST", url)
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", accessToken))
+	
+	body := map[string]string{
+		"path": uploadPath
+	}
+	req.BodyJSON(&body)
+
+	res, err := client.Do(req)
+	logger.Println(res)
+}
+
 func main() {
 	accessToken, refreshToken := getTokensFromFile()
 
